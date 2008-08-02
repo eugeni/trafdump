@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
+<!--Generated with glade3 3.4.1 on Wed Feb 27 14:00:56 2008 -->
+<glade-interface>
+  <widget class="GtkWindow" id="MainWindow">
+    <property name="width_request">640</property>
+    <property name="height_request">480</property>
+    <property name="visible">True</property>
+    <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+    <property name="title" translatable="yes">BlueLab</property>
+    <property name="resizable">False</property>
+    <property name="window_position">GTK_WIN_POS_CENTER</property>
+    <signal name="destroy" handler="on_MainWindow_destroy"/>
+    <child>
+      <widget class="GtkFixed" id="MainLayout">
+        <property name="width_request">640</property>
+        <property name="height_request">480</property>
+        <property name="visible">True</property>
+        <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+        <child>
+          <widget class="GtkHBox" id="TopHBox">
+            <property name="width_request">640</property>
+            <property name="height_request">40</property>
+            <property name="visible">True</property>
+            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+            <child>
+              <placeholder/>
+            </child>
+          </widget>
+        </child>
+        <child>
+          <widget class="GtkHBox" id="BottomHBox">
+            <property name="width_request">640</property>
+            <property name="height_request">40</property>
+            <property name="visible">True</property>
+            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+            <child>
+              <placeholder/>
+            </child>
+          </widget>
+          <packing>
+            <property name="y">440</property>
+          </packing>
+        </child>
+        <child>
+          <widget class="GtkVBox" id="MenuHBox">
+            <property name="width_request">160</property>
+            <property name="height_request">400</property>
+            <property name="visible">True</property>
+            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+            <property name="spacing">5</property>
+            <child>
+              <placeholder/>
+            </child>
+          </widget>
+          <packing>
+            <property name="x">10</property>
+            <property name="y">40</property>
+          </packing>
+        </child>
+        <child>
+          <widget class="GtkNotebook" id="CommandHBox">
+            <property name="width_request">420</property>
+            <property name="height_request">80</property>
+            <property name="visible">True</property>
+            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+            <property name="show_tabs">False</property>
+            <property name="show_border">False</property>
+            <child>
+              <placeholder/>
+            </child>
+          </widget>
+          <packing>
+            <property name="x">200</property>
+            <property name="y">50</property>
+          </packing>
+        </child>
+        <child>
+          <widget class="GtkScrolledWindow" id="MachinesScrollWindow">
+            <property name="width_request">420</property>
+            <property name="height_request">300</property>
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+            <property name="hscrollbar_policy">GTK_POLICY_NEVER</property>
+            <property name="vscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+            <child>
+              <widget class="GtkLayout" id="MachineLayout">
+                <property name="visible">True</property>
+                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+              </widget>
+            </child>
+          </widget>
+          <packing>
+            <property name="x">200</property>
+            <property name="y">140</property>
+          </packing>
+        </child>
+      </widget>
+    </child>
+  </widget>
+</glade-interface>
