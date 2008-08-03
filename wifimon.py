@@ -5,6 +5,7 @@ Teacher GUI using GLADE
 
 import sys
 import traceback
+import time
 
 import os
 import logging
@@ -19,7 +20,23 @@ __builtin__._ = gettext.gettext
 MACHINES_X=8
 MACHINES_Y=8
 
-class gui_teacher:
+def wifi_status():
+    data = open("/proc/net/wireless").readlines()[2].strip()
+    iface, params = data.split(":", 1)
+    # todo: REGEXP parsing
+    fields = params.split()
+    link = fields[1]
+    level = fields[2]
+    noise = fields[3]
+    return iface, link, level, noise
+
+def wifi_to_text():
+    """Converts WIFI status to text"""
+    iface, link, level, noise = wifi_status()
+    text = "Iface: %s\nLink: %s\nSignal: %s\nNoise: %s" % (iface, link, level, noise)
+    return text
+
+class wifimon:
     """Teacher GUI main class"""
     def __init__(self, guifile):
         """Initializes the interface"""
@@ -89,29 +106,24 @@ class gui_teacher:
         # Constroi a interface
         self.build_iface()
 
-        # Constroi as maquinas
-        self.machine_layout = [None] * MACHINES_X
-        for x in range(0, MACHINES_X):
-            self.machine_layout[x] = [None] * MACHINES_Y
         self.build_machines()
-
-    def put_machine(self, machine):
-        """Puts a client machine in an empty spot"""
-        for y in range(0, MACHINES_Y):
-            for x in range(0, MACHINES_X):
-                if not self.machine_layout[x][y]:
-                    self.machine_layout[x][y] = machine
-                    self.MachineLayout.put(machine, x * 70, y * 80)
-                    machine.machine_x = x
-                    machine.machine_y = y
-                    return
-        #bluelab_config.error("Not enough layout space to add a machine!")
 
     def build_machines(self):
         """Builds client machines"""
-        for z in range(0, 90):
-            button = self.mkmachine("Machine %d" % z)
-            self.put_machine(button)
+        # cria 4 maquinas nos cantos
+        machines_coord = [
+                (0, 0, _("Top left corner")),
+                (240, 0, _("Top right corner")),
+                (0, 200, _("Bottom left corner")),
+                (240, 200, _("Bottom right corner"))
+                ]
+        self.machines = []
+        for x, y, text in machines_coord:
+            machine = self.mkmachine(text, status="offline")
+            machine.button.connect('clicked', self.cb_machine, machine)
+            #self.machine_layout[x][y] = machine
+            self.MachineLayout.put(machine, x, y)
+            self.machines.append(machine)
         self.MachineLayout.show_all()
 
 
@@ -189,7 +201,6 @@ class gui_teacher:
             button.set_image(button.img_on)
         else:
             button.set_image(button.img_off)
-        button.connect('clicked', self.cb_machine, box)
         box.pack_start(button, expand=False)
 
         label = gtk.Label(_("name"))
@@ -198,7 +209,7 @@ class gui_teacher:
         box.pack_start(label, expand=False)
 
         self.tooltip.set_tip(box, name)
-        box.set_size_request(52, 52)
+#        box.set_size_request(52, 52)
 
         # Sets private variables
         box.machine = name
@@ -208,18 +219,12 @@ class gui_teacher:
 
     def cb_machine(self, widget, machine):
         """Callback when clicked on a client machine"""
-        for x in self.machine_layout:
-            for y in x:
-                if y == machine:
-                    # changes icon
-                    img = y.button.get_image()
-                    if not img:
-                        break
-                    if img == y.button.img_on:
-                        y.button.set_image(y.button.img_off)
-                    else:
-                        y.button.set_image(y.button.img_on)
-                    break
+        img = machine.button.get_image()
+        if img == machine.button.img_off:
+            machine.button.set_image(machine.button.img_on)
+
+        # muda o texto
+        machine.label.set_markup(wifi_to_text())
 
     def mkbutton(self, img, img2, text, action, color_normal, color_active): # {{{ Creates a callable button
         """Creates a callable button"""
@@ -369,6 +374,7 @@ class gui_teacher:
         pass
 
 if __name__ == "__main__":
-    print _("Starting Teacher GUI..")
-    gui = gui_teacher("iface/wifimon.glade")
+    iface, link, level, noise = wifi_status()
+    print _("Starting GUI..")
+    gui = wifimon("iface/wifimon.glade")
     gtk.main()
