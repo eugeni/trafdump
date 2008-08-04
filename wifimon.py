@@ -7,20 +7,36 @@ import sys
 import traceback
 import time
 
+import socket
+import fcntl
+import struct
+
 import os
 import logging
 import gtk
 import gtk.glade
 import pygtk
+import gobject
 
 import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
 
-MACHINES_X=8
-MACHINES_Y=8
+# TODO: unfinished
+# def wifi_params(iface):
+#     """Returns wifi configuration parameters"""
+#     ifacename = struct.pack('256s', iface)
+#     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+#     wname = fcntl.ioctl(s.fileno(), 0x8B01, ifacename) # SIOCGIWNAME
+#     wfreq = fcntl.ioctl(s.fileno(), 0x8B05, ifacename) # SIOCGIWFREQ
+#     wessid = ""#fcntl.ioctl(s.fileno(), 0x8B1B, ifacename) # SIOCGIWESSID
+#     wmode = ""#fcntl.ioctl(s.fileno(), 0x8B06, ifacename) # SIOCGIWMODE
+#     wap = fcntl.ioctl(s.fileno(), 0x8B15, ifacename) # SIOCGIWAP
+#     wrate = fcntl.ioctl(s.fileno(), 0x8B21, ifacename) # SIOCGIWRATE
+#     return wname, wfreq, wessid, wmode, wap, wrate
 
 def wifi_status():
+    """Return current wifi link status"""
     data = open("/proc/net/wireless").readlines()[2].strip()
     iface, params = data.split(":", 1)
     # todo: REGEXP parsing
@@ -30,17 +46,11 @@ def wifi_status():
     noise = fields[3]
     return iface, link, level, noise
 
-def wifi_to_text():
-    """Converts WIFI status to text"""
-    iface, link, level, noise = wifi_status()
-    text = "Iface: %s\nLink: %s\nSignal: %s\nNoise: %s" % (iface, link, level, noise)
-    return text
-
 class wifimon:
+    selected_machines = 0
     """Teacher GUI main class"""
     def __init__(self, guifile):
         """Initializes the interface"""
-
         # colors
         self.color_normal = gtk.gdk.color_parse("#99BFEA")
         self.color_active = gtk.gdk.color_parse("#FFBBFF")
@@ -54,68 +64,43 @@ class wifimon:
                 }
         self.wTree.signal_autoconnect(dic)
 
-        # Main menu entries
-        self.mainmenu_dict = [
-                    {
-                        "id": "home",
-                        "text":_("Main"),
-                        "img_normal": "home.png",
-                        "img_active": "home.png",
-                        "color_normal": gtk.gdk.color_parse("#99BFEA"),
-                        "color_active": gtk.gdk.color_parse("#FFBBFF")
-                    },
-                    {
-                        "id": "wifi_status",
-                        "text": _("Wi-Fi Status"),
-                        "img_normal": "wifi_status.png",
-                        "img_active": "wifi_status_active.png",
-                        "color_normal": gtk.gdk.color_parse("#99BFEA"),
-                        "color_active": gtk.gdk.color_parse("#FFBBFF")
-                    },
-                    {
-                        "id": "througput",
-                        "text": _("Network Status"),
-                        "img_normal": "network_status.png",
-                        "img_active": "network_status_active.png",
-                        "color_normal": gtk.gdk.color_parse("#99BFEA"),
-                        "color_active": gtk.gdk.color_parse("#FFBBFF")
-                    },
-                    {
-                        "id": "help",
-                        "text": _("Help"),
-                        "img_normal": "help.png",
-                        "img_active": "help_active.png",
-                        "color_normal": gtk.gdk.color_parse("#99BFEA"),
-                        "color_active": gtk.gdk.color_parse("#FFBBFF")
-                    },
-                    {
-                        "id": "about",
-                        "text": _("About"),
-                        "img_normal": "about.png",
-                        "img_active": "about_active.png",
-                        "color_normal": gtk.gdk.color_parse("#99BFEA"),
-                        "color_active": gtk.gdk.color_parse("#FFBBFF")
-                    }
-                ]
-
-        self.topmenu_dict = {}
-
         # tooltips
         self.tooltip = gtk.Tooltips()
 
-        # Constroi a interface
-        self.build_iface()
+        # Muda o background
+        self.MainWindow.modify_bg(gtk.STATE_NORMAL, self.color_background)
+        self.MachineLayout.modify_bg(gtk.STATE_NORMAL, self.color_background)
 
+        # Constroi as maquinas
         self.build_machines()
+
+        # Configura os botoes
+        self.QuitButton.connect('clicked', self.on_MainWindow_destroy)
+        self.SaveButton.connect('clicked', self.save_results)
+
+        # Configura o timer
+        gobject.timeout_add(1000, self.monitor)
+
+    def monitor(self):
+        """Monitors WIFI status"""
+        iface, link, level, noise = wifi_status()
+        self.StatusLabel.set_markup("<b>Link:</b> %s, <b>Signal:</b> %s, <b>Noise:</b> %s" % (link, level, noise))
+        gobject.timeout_add(1000, self.monitor)
+
+    def save_results(self, widget):
+        """Saves results"""
+        print "Salvando!"
+        for z in self.machines:
+            print z.wifi
 
     def build_machines(self):
         """Builds client machines"""
         # cria 4 maquinas nos cantos
         machines_coord = [
                 (0, 0, _("Top left corner")),
-                (240, 0, _("Top right corner")),
+                (300, 0, _("Top right corner")),
                 (0, 200, _("Bottom left corner")),
-                (240, 200, _("Bottom right corner"))
+                (300, 200, _("Bottom right corner"))
                 ]
         self.machines = []
         for x, y, text in machines_coord:
@@ -126,38 +111,6 @@ class wifimon:
             self.machines.append(machine)
         self.MachineLayout.show_all()
 
-
-    def build_menu_home(self):
-        """Builds initial BlueLab menu"""
-        box = gtk.VBox(homogeneous=False)
-        label = gtk.Label(_("Network status:"))
-        box.pack_start(label, expand=False)
-
-        # Menu
-        #box.pack_start(
-        #        self.mkbutton("turn_on.png", "turn_on.png", _("Turn on student machines"), self.action_turnon),
-        #        expand = False
-        #        )
-        return box
-
-    def build_menu_send_message(self):
-        """Builds send message menu"""
-        box = gtk.VBox(homogeneous = False)
-        box2 = gtk.HBox(homogeneous = False, spacing=15)
-        label = gtk.Label(_("Enter your message to send to all students"))
-        msg_input = gtk.Entry()
-        button = gtk.Button(_("Send!"))
-        button.connect('clicked', self.cb_send_message, msg_input)
-        box.pack_start(label, expand=False)
-        box.pack_start(box2, expand=False)
-        box2.pack_start(msg_input)
-        box2.pack_start(button, expand=False)
-        return box
-
-    def cb_send_message(self, widget, data):
-        """Sends a message to students"""
-        print widget
-        print data.get_text()
 
     def __getattr__(self, attr):
         """Requests an attribute from Glade"""
@@ -215,6 +168,7 @@ class wifimon:
         box.machine = name
         box.button = button
         box.label = label
+        box.wifi = None
         return box
 
     def cb_machine(self, widget, machine):
@@ -222,9 +176,14 @@ class wifimon:
         img = machine.button.get_image()
         if img == machine.button.img_off:
             machine.button.set_image(machine.button.img_on)
+            self.selected_machines += 1
+            if self.selected_machines > 3:
+                self.SaveButton.set_sensitive(True)
 
         # muda o texto
-        machine.label.set_markup(wifi_to_text())
+        iface, link, level, noise = wifi_status()
+        machine.wifi = link, level, noise
+        machine.label.set_markup("Link: %s\nSignal: %s\nNoise: %s" % (link, level, noise))
 
     def mkbutton(self, img, img2, text, action, color_normal, color_active): # {{{ Creates a callable button
         """Creates a callable button"""
@@ -271,107 +230,6 @@ class wifimon:
         return button
     # }}}
 
-    def build_iface(self):
-        """Builds main iface"""
-        # Muda o background
-        self.MainWindow.modify_bg(gtk.STATE_NORMAL, self.color_background)
-        self.MachineLayout.modify_bg(gtk.STATE_NORMAL, self.color_background)
-
-        # Cria o menu principal
-        menu = self.MenuHBox
-
-        # Build the menu
-#        for id, img, img2, text, action in self.mainmenu_dict:
-        for curmenu in self.mainmenu_dict:
-            id = curmenu["id"]
-            text = curmenu["text"]
-            img = curmenu["img_normal"]
-            img2 = curmenu["img_active"]
-            color_normal = curmenu["color_normal"]
-            color_active = curmenu["color_active"]
-
-            # determina callback
-            if hasattr(self, "action_%s" % id):
-                action = getattr(self, "action_%s" % id)
-            else:
-                action = None
-
-            button = self.mkbutton(img, img2, text, action, color_normal, color_active)
-            # Controi o menu lateral
-            menu.add(button)
-            # Controi o menu superior
-            builder = "build_menu_%s" % id
-            method = getattr(self, builder)
-            curpage = None
-            if method:
-                #bluelab_config.debug("Building menu for %s" % id)
-                curpage = method()
-            else:
-                # Just create an empty frame
-                #bluelab_config.debug("Building EMPTY menu for %s" % id)
-                curpage = gtk.VBox()
-            curpage.show_all()
-            self.CommandHBox.append_page(curpage)
-            self.topmenu_dict[id] = curpage
-        self.CommandHBox.set_current_page(0)
-
-    def show_menu(self, menuname):
-        """Shows a menu for a page"""
-        print "Trying to show %s" % menuname
-        try:
-            id = self.topmenu_dict[menuname]
-            self.CommandHBox.set_current_page(self.CommandHBox.page_num(id))
-        except:
-            pass
-
-    def action_turnon(self, widget, data):
-        """Turns on student machines"""
-        pass
-
-    def action_home(self, widget, data):
-        """Shows initial bluelab screen"""
-        self.show_menu("home")
-
-    def action_share_screen(self, widget, data):
-        """Start screen sharing"""
-        print "Starting screen sharing.."
-        self.show_menu("share_screen")
-
-    def action_request_attention(self, widget, data):
-        """Request student attention"""
-        self.show_menu("request_attention")
-
-    def action_view_students_screen(self, widget, data):
-        """Views student screen"""
-        self.show_menu("view_students")
-
-    def action_send_message(self, widget, data):
-        """Sends a message to students"""
-        self.show_menu("send_message")
-
-    def action_send_file(self, widget, data):
-        """Sends file to students"""
-        pass
-
-    def action_open_browser(self, widget, data):
-        """Opens a browsers on student machines"""
-        pass
-
-    def action_open_application(self, widget, data):
-        """Starts an application on student machines"""
-        pass
-
-    def action_lab_controls(self, widget, data):
-        """Opens lab control screen"""
-        pass
-
-    def share_screen(self, widget, data):
-        """Start screen sharing"""
-        pass
-
-    def share_screen(self, widget, data):
-        """Start screen sharing"""
-        pass
 
 if __name__ == "__main__":
     iface, link, level, noise = wifi_status()
