@@ -22,6 +22,8 @@ import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
 
+# template do relatorio
+
 # TODO: unfinished
 # def wifi_params(iface):
 #     """Returns wifi configuration parameters"""
@@ -34,6 +36,18 @@ __builtin__._ = gettext.gettext
 #     wap = fcntl.ioctl(s.fileno(), 0x8B15, ifacename) # SIOCGIWAP
 #     wrate = fcntl.ioctl(s.fileno(), 0x8B21, ifacename) # SIOCGIWRATE
 #     return wname, wfreq, wessid, wmode, wap, wrate
+
+def wifi_params(iface):
+    """Runs iwconfig to get wireless parameters"""
+    res = os.popen("./iwstat %s" % iface).readlines()
+    if len(res) < 10:
+        print "No wireless info for %s" % iface
+        return None
+    params = {}
+    for z in res:
+        name, value = z.strip().split(":", 1)
+        params[name] = value
+    return params
 
 def wifi_status():
     """Return current wifi link status"""
@@ -233,6 +247,9 @@ class wifimon:
 
 if __name__ == "__main__":
     iface, link, level, noise = wifi_status()
+    params = wifi_params(iface)
+    for name in params:
+        print "%s: %s" % (name, params[name])
     print _("Starting GUI..")
     gui = wifimon("iface/wifimon.glade")
     gtk.main()
