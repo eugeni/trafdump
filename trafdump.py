@@ -248,8 +248,6 @@ class wifimon:
 if __name__ == "__main__":
     iface, link, level, noise = wifi_status()
     params = wifi_params(iface)
-    for name in params:
-        print "%s: %s" % (name, params[name])
     print _("Starting GUI..")
-    gui = wifimon("iface/wifimon.glade")
+    gui = wifimon("iface/trafdump.glade")
     gtk.main()
