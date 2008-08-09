@@ -22,45 +22,10 @@ import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
 
-# template do relatorio
+MACHINES_X = 8
+MACHINES_Y = 8
 
-# TODO: unfinished
-# def wifi_params(iface):
-#     """Returns wifi configuration parameters"""
-#     ifacename = struct.pack('256s', iface)
-#     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-#     wname = fcntl.ioctl(s.fileno(), 0x8B01, ifacename) # SIOCGIWNAME
-#     wfreq = fcntl.ioctl(s.fileno(), 0x8B05, ifacename) # SIOCGIWFREQ
-#     wessid = ""#fcntl.ioctl(s.fileno(), 0x8B1B, ifacename) # SIOCGIWESSID
-#     wmode = ""#fcntl.ioctl(s.fileno(), 0x8B06, ifacename) # SIOCGIWMODE
-#     wap = fcntl.ioctl(s.fileno(), 0x8B15, ifacename) # SIOCGIWAP
-#     wrate = fcntl.ioctl(s.fileno(), 0x8B21, ifacename) # SIOCGIWRATE
-#     return wname, wfreq, wessid, wmode, wap, wrate
-
-def wifi_params(iface):
-    """Runs iwconfig to get wireless parameters"""
-    res = os.popen("./iwstat %s" % iface).readlines()
-    if len(res) < 10:
-        print "No wireless info for %s" % iface
-        return None
-    params = {}
-    for z in res:
-        name, value = z.strip().split(":", 1)
-        params[name] = value
-    return params
-
-def wifi_status():
-    """Return current wifi link status"""
-    data = open("/proc/net/wireless").readlines()[2].strip()
-    iface, params = data.split(":", 1)
-    # todo: REGEXP parsing
-    fields = params.split()
-    link = fields[1]
-    level = fields[2]
-    noise = fields[3]
-    return iface, link, level, noise
-
-class wifimon:
+class trafdump:
     selected_machines = 0
     """Teacher GUI main class"""
     def __init__(self, guifile):
@@ -85,46 +50,56 @@ class wifimon:
         self.MainWindow.modify_bg(gtk.STATE_NORMAL, self.color_background)
         self.MachineLayout.modify_bg(gtk.STATE_NORMAL, self.color_background)
 
-        # Constroi as maquinas
-        self.build_machines()
-
         # Configura os botoes
         self.QuitButton.connect('clicked', self.on_MainWindow_destroy)
-        self.SaveButton.connect('clicked', self.save_results)
+        self.SelectAllButton.connect('clicked', self.select_all)
+        self.UnselectAllButton.connect('clicked', self.unselect_all)
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
 
-    def monitor(self):
-        """Monitors WIFI status"""
-        iface, link, level, noise = wifi_status()
-        self.StatusLabel.set_markup("<b>Link:</b> %s, <b>Signal:</b> %s, <b>Noise:</b> %s" % (link, level, noise))
-        gobject.timeout_add(1000, self.monitor)
+        # Inicializa a matriz de maquinas
+        self.machine_layout = [None] * MACHINES_X
+        for x in range(0, MACHINES_X):
+            self.machine_layout[x] = [None] * MACHINES_Y
 
-    def save_results(self, widget):
-        """Saves results"""
-        print "Salvando!"
-        for z in self.machines:
-            print z.wifi
-
-    def build_machines(self):
-        """Builds client machines"""
-        # cria 4 maquinas nos cantos
-        machines_coord = [
-                (0, 0, _("Top left corner")),
-                (300, 0, _("Top right corner")),
-                (0, 200, _("Bottom left corner")),
-                (300, 200, _("Bottom right corner"))
-                ]
         self.machines = []
-        for x, y, text in machines_coord:
-            machine = self.mkmachine(text, status="offline")
+
+        # Constroi as maquinas
+        for z in range(0, 90):
+            machine = self.mkmachine("Machine %d" % (z + 1))
             machine.button.connect('clicked', self.cb_machine, machine)
-            #self.machine_layout[x][y] = machine
-            self.MachineLayout.put(machine, x, y)
+            self.put_machine(machine)
             self.machines.append(machine)
+        # Mostra as maquinas
         self.MachineLayout.show_all()
 
+    def put_machine(self, machine):
+        """Puts a client machine in an empty spot"""
+        for y in range(0, MACHINES_Y):
+            for x in range(0, MACHINES_X):
+                if not self.machine_layout[x][y]:
+                    self.machine_layout[x][y] = machine
+                    self.MachineLayout.put(machine, x * 70, y * 65)
+                    machine.machine_x = x
+                    machine.machine_y = y
+                    return
+        print "Not enough layout space to add a machine!"
+
+    def monitor(self):
+        """Monitors WIFI status"""
+        #self.StatusLabel.set_markup("<b>Link:</b> %s, <b>Signal:</b> %s, <b>Noise:</b> %s" % (link, level, noise))
+        #gobject.timeout_add(1000, self.monitor)
+
+    def select_all(self, widget):
+        """Selects all machines"""
+        for z in self.machines:
+            z.button.set_image(z.button.img_on)
+
+    def unselect_all(self, widget):
+        """Selects all machines"""
+        for z in self.machines:
+            z.button.set_image(z.button.img_off)
 
     def __getattr__(self, attr):
         """Requests an attribute from Glade"""
@@ -150,7 +125,7 @@ class wifimon:
             img=None
         return img
 
-    def mkmachine(self, name, img="machine.png", img_offline="machine_off.png", status="online"):
+    def mkmachine(self, name, img="machine.png", img_offline="machine_off.png", status="offline"):
         """Creates a client representation"""
         box = gtk.VBox(homogeneous=False)
 
@@ -190,14 +165,10 @@ class wifimon:
         img = machine.button.get_image()
         if img == machine.button.img_off:
             machine.button.set_image(machine.button.img_on)
-            self.selected_machines += 1
-            if self.selected_machines > 3:
-                self.SaveButton.set_sensitive(True)
+        else:
+            machine.button.set_image(machine.button.img_off)
 
         # muda o texto
-        iface, link, level, noise = wifi_status()
-        machine.wifi = link, level, noise
-        machine.label.set_markup("Link: %s\nSignal: %s\nNoise: %s" % (link, level, noise))
 
     def mkbutton(self, img, img2, text, action, color_normal, color_active): # {{{ Creates a callable button
         """Creates a callable button"""
@@ -246,8 +217,6 @@ class wifimon:
 
 
 if __name__ == "__main__":
-    iface, link, level, noise = wifi_status()
-    params = wifi_params(iface)
     print _("Starting GUI..")
-    gui = wifimon("iface/trafdump.glade")
+    gui = trafdump("iface/trafdump.glade")
     gtk.main()
