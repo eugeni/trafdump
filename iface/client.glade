@@ -40,7 +40,7 @@
             <child>
               <widget class="GtkLabel" id="StatusLabel">
                 <property name="visible">True</property>
-                <property name="label" translatable="yes">Collecting wireless information..</property>
+                <property name="label" translatable="yes">Broadcasting for server..</property>
                 <property name="use_markup">True</property>
                 <property name="justify">GTK_JUSTIFY_RIGHT</property>
               </widget>
