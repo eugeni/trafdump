@@ -18,6 +18,11 @@ import gtk.glade
 import pygtk
 import gobject
 
+from threading import Thread
+import socket
+import traceback
+import time
+
 import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
@@ -76,6 +81,7 @@ class trafdump:
     def on_MainWindow_destroy(self, widget):
         """Main window was closed"""
         gtk.main_quit()
+        sys.exit(0)
 
     def mkbutton(self, img, img2, text, action, color_normal, color_active): # {{{ Creates a callable button
         """Creates a callable button"""
@@ -122,8 +128,32 @@ class trafdump:
         return button
     # }}}
 
+class BcastSender(Thread):
+    """Sends broadcast requests"""
+    def __init__(self, port):
+        Thread.__init__(self)
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.bind(('', 0))
+
+    def run(self):
+        """Starts threading loop"""
+        print "Running!"
+        while 1:
+            # TODO: add timers to exit when required
+            try:
+                print "Sending broadcasting message.."
+                self.sock.sendto("hello", ('255.255.255.255', self.port))
+                time.sleep(1)
+            except:
+                traceback.print_exc()
 
 if __name__ == "__main__":
+    gtk.gdk.threads_init()
     print _("Starting GUI..")
+    bcast = BcastSender(10000)
+    bcast.start()
     gui = trafdump("iface/client.glade")
     gtk.main()

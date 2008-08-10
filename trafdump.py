@@ -18,6 +18,11 @@ import gtk.glade
 import pygtk
 import gobject
 
+import Queue
+import SocketServer
+import socket
+from threading import Thread
+
 import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
@@ -30,6 +35,8 @@ class trafdump:
     """Teacher GUI main class"""
     def __init__(self, guifile):
         """Initializes the interface"""
+        # inter-class communication
+        self.queue = Queue.Queue()
         # colors
         self.color_normal = gtk.gdk.color_parse("#99BFEA")
         self.color_active = gtk.gdk.color_parse("#FFBBFF")
@@ -63,14 +70,8 @@ class trafdump:
         for x in range(0, MACHINES_X):
             self.machine_layout[x] = [None] * MACHINES_Y
 
-        self.machines = []
+        self.machines = {}
 
-        # Constroi as maquinas
-        for z in range(0, 90):
-            machine = self.mkmachine("Machine %d" % (z + 1))
-            machine.button.connect('clicked', self.cb_machine, machine)
-            self.put_machine(machine)
-            self.machines.append(machine)
         # Mostra as maquinas
         self.MachineLayout.show_all()
 
@@ -87,18 +88,31 @@ class trafdump:
         print "Not enough layout space to add a machine!"
 
     def monitor(self):
-        """Monitors WIFI status"""
+        """Monitors new machines connections"""
         #self.StatusLabel.set_markup("<b>Link:</b> %s, <b>Signal:</b> %s, <b>Noise:</b> %s" % (link, level, noise))
-        #gobject.timeout_add(1000, self.monitor)
+        while not self.queue.empty():
+            addr = self.queue.get()
+            if addr not in self.machines:
+                # Maquina nova
+                gtk.gdk.threads_enter()
+                machine = self.mkmachine("%s" % addr)
+                machine.button.connect('clicked', self.cb_machine, machine)
+                self.put_machine(machine)
+                self.machines[addr] = machine
+                machine.show_all()
+                self.StatusLabel.set_text("Found %s (%d machines connected)!" % (addr, len(self.machines)))
+                gtk.gdk.threads_leave()
+
+        gobject.timeout_add(1000, self.monitor)
 
     def select_all(self, widget):
         """Selects all machines"""
-        for z in self.machines:
+        for z in self.machines.values():
             z.button.set_image(z.button.img_on)
 
     def unselect_all(self, widget):
         """Selects all machines"""
-        for z in self.machines:
+        for z in self.machines.values():
             z.button.set_image(z.button.img_off)
 
     def __getattr__(self, attr):
@@ -113,6 +127,7 @@ class trafdump:
     def on_MainWindow_destroy(self, widget):
         """Main window was closed"""
         gtk.main_quit()
+        sys.exit(0)
 
     def get_img(self, imgpath):
         """Returns image widget if exists"""
@@ -125,7 +140,7 @@ class trafdump:
             img=None
         return img
 
-    def mkmachine(self, name, img="machine.png", img_offline="machine_off.png", status="offline"):
+    def mkmachine(self, name, img="machine.png", img_offline="machine_off.png", status="online"):
         """Creates a client representation"""
         box = gtk.VBox(homogeneous=False)
 
@@ -215,8 +230,41 @@ class trafdump:
         return button
     # }}}
 
+# Main interface
+gui = trafdump("iface/trafdump.glade")
+
+class TrafBroadcast(Thread):
+    """Broadcast-related services"""
+    def __init__(self, port):
+        """Initializes listening thread"""
+        Thread.__init__(self)
+        self.port = port
+
+    def run(self):
+        """Starts listening to broadcast"""
+        class BcastHandler(SocketServer.DatagramRequestHandler):
+            """Handles broadcast messages"""
+            def handle(self):
+                """Receives a broadcast message"""
+                client = self.client_address[0]
+                print "Hearbeat from %s!" % client
+                gui.queue.put(client)
+        self.socket_bcast = SocketServer.UDPServer(('', self.port), BcastHandler)
+        while 1:
+            try:
+                self.socket_bcast.handle_request()
+            except socket.timeout:
+                print "Timeout caught!"
+                continue
+            except:
+                print "Error handling broadcast socket!"
+                break
+
 
 if __name__ == "__main__":
+    gtk.gdk.threads_init()
+    print _("Starting broadcast..")
+    bcast = TrafBroadcast(10000)
+    bcast.start()
     print _("Starting GUI..")
-    gui = trafdump("iface/trafdump.glade")
     gtk.main()
