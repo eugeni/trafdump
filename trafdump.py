@@ -27,6 +27,8 @@ import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
 
+from config import *
+
 MACHINES_X = 8
 MACHINES_Y = 8
 
@@ -61,6 +63,8 @@ class trafdump:
         self.QuitButton.connect('clicked', self.on_MainWindow_destroy)
         self.SelectAllButton.connect('clicked', self.select_all)
         self.UnselectAllButton.connect('clicked', self.unselect_all)
+        self.StartCapture.connect('clicked', self.start_capture)
+        self.StopCapture.connect('clicked', self.stop_capture)
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
@@ -72,8 +76,35 @@ class trafdump:
 
         self.machines = {}
 
+        # configura as interfaces
+        self.IfacesBox.set_model(gtk.ListStore(str))
+        cell = gtk.CellRendererText()
+        self.IfacesBox.pack_start(cell, True)
+        self.IfacesBox.add_attribute(cell, 'text', 0)
+        self.IfacesBox.append_text(_("Network interface"))
+        # Obtem a lista de interfaces disponiveis
+        self.ifaces = list_ifaces()
+        for z in self.ifaces.keys():
+            self.IfacesBox.append_text(z)
+        self.IfacesBox.set_active(0)
+        self.IfacesBox.connect('changed', self.network_selected)
+        self.iface = None
+
         # Mostra as maquinas
         self.MachineLayout.show_all()
+
+    def network_selected(self, combobox):
+        """A network interface was selected"""
+        model = combobox.get_model()
+        index = combobox.get_active()
+        if index > 0:
+            self.iface = model[index][0]
+            self.StartCapture.set_sensitive(True)
+        else:
+            self.iface = None
+            self.StartCapture.set_sensitive(False)
+        return
+
 
     def put_machine(self, machine):
         """Puts a client machine in an empty spot"""
@@ -104,6 +135,20 @@ class trafdump:
                 gtk.gdk.threads_leave()
 
         gobject.timeout_add(1000, self.monitor)
+
+    def start_capture(self, widget):
+        """Inicia a captura"""
+        self.StartCapture.set_sensitive(False)
+        self.StopCapture.set_sensitive(True)
+        self.IfacesBox.set_sensitive(False)
+        print "Captura iniciada"
+
+    def stop_capture(self, widget):
+        """Termina a captura"""
+        self.StartCapture.set_sensitive(True)
+        self.StopCapture.set_sensitive(False)
+        self.IfacesBox.set_sensitive(True)
+        print "Captura finalizada"
 
     def select_all(self, widget):
         """Selects all machines"""
@@ -259,7 +304,6 @@ class TrafBroadcast(Thread):
             except:
                 print "Error handling broadcast socket!"
                 break
-
 
 if __name__ == "__main__":
     gtk.gdk.threads_init()
