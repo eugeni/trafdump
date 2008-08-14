@@ -76,35 +76,8 @@ class trafdump:
 
         self.machines = {}
 
-        # configura as interfaces
-        self.IfacesBox.set_model(gtk.ListStore(str))
-        cell = gtk.CellRendererText()
-        self.IfacesBox.pack_start(cell, True)
-        self.IfacesBox.add_attribute(cell, 'text', 0)
-        self.IfacesBox.append_text(_("Network interface"))
-        # Obtem a lista de interfaces disponiveis
-        self.ifaces = list_ifaces()
-        for z in self.ifaces.keys():
-            self.IfacesBox.append_text(z)
-        self.IfacesBox.set_active(0)
-        self.IfacesBox.connect('changed', self.network_selected)
-        self.iface = None
-
         # Mostra as maquinas
         self.MachineLayout.show_all()
-
-    def network_selected(self, combobox):
-        """A network interface was selected"""
-        model = combobox.get_model()
-        index = combobox.get_active()
-        if index > 0:
-            self.iface = model[index][0]
-            self.StartCapture.set_sensitive(True)
-        else:
-            self.iface = None
-            self.StartCapture.set_sensitive(False)
-        return
-
 
     def put_machine(self, machine):
         """Puts a client machine in an empty spot"""
@@ -138,16 +111,33 @@ class trafdump:
 
     def start_capture(self, widget):
         """Inicia a captura"""
+        # TODO: perguntar o nome do experimento
         self.StartCapture.set_sensitive(False)
         self.StopCapture.set_sensitive(True)
-        self.IfacesBox.set_sensitive(False)
+        for z in self.machines:
+            img = self.machines[z].button.get_image()
+            if img == self.machines[z].button.img_on:
+                print "Enviando para %s" % z
+                # enviando mensagem para cliente para iniciar a captura
+                res = send_msg(z, 10000, COMMAND_START_CAPTURE,
+                        params=struct.pack("10s32s", str(int(time.time())), "Experimento")
+                        )
+                if not res:
+                    print "Erro enviando mensagem para %s" % z
         print "Captura iniciada"
 
     def stop_capture(self, widget):
         """Termina a captura"""
         self.StartCapture.set_sensitive(True)
         self.StopCapture.set_sensitive(False)
-        self.IfacesBox.set_sensitive(True)
+        for z in self.machines:
+            img = self.machines[z].button.get_image()
+            if img == self.machines[z].button.img_on:
+                print "Enviando para %s" % z
+                # enviando mensagem para cliente para iniciar a captura
+                res = send_msg(z, 10000, COMMAND_STOP_CAPTURE)
+                if not res:
+                    print "Erro enviando mensagem para %s" % z
         print "Captura finalizada"
 
     def select_all(self, widget):
@@ -292,7 +282,7 @@ class TrafBroadcast(Thread):
             def handle(self):
                 """Receives a broadcast message"""
                 client = self.client_address[0]
-                print "Hearbeat from %s!" % client
+                print " >> Heartbeat from %s!" % client
                 gui.queue.put(client)
         self.socket_bcast = SocketServer.UDPServer(('', self.port), BcastHandler)
         while 1:

@@ -8,6 +8,7 @@ import traceback
 import time
 
 import socket
+import SocketServer
 import fcntl
 import struct
 
@@ -26,6 +27,13 @@ import time
 import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
+
+from config import *
+
+# configuracoes globais
+commands = None
+ifaces = list_ifaces()
+iface_selected = 0
 
 class trafdump:
     selected_machines = 0
@@ -53,6 +61,39 @@ class trafdump:
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
+
+        # configura as interfaces
+        self.IfacesBox.set_model(gtk.ListStore(str))
+        cell = gtk.CellRendererText()
+        self.IfacesBox.pack_start(cell, True)
+        self.IfacesBox.add_attribute(cell, 'text', 0)
+        self.IfacesBox.append_text(_("Network interface"))
+        # Obtem a lista de interfaces disponiveis
+        global ifaces
+        for z in ifaces.keys():
+            self.IfacesBox.append_text(z)
+        # acha a interface mais adequada
+        # for z in range(len(self.ifaces)):
+        #     iface = self.ifaces.keys()[z].strip()
+        #     if iface[:3] == "any":
+        #         print "found: %d!" % z
+        #         print iface
+        #         self.IfacesBox.set_active(z + 1)
+        self.IfacesBox.set_active(0)
+        self.IfacesBox.connect('changed', self.network_selected)
+        self.iface = None
+
+    def network_selected(self, combobox):
+        """A network interface was selected"""
+        model = combobox.get_model()
+        index = combobox.get_active()
+        global iface_selected
+        if index > 0:
+            iface_selected = model[index][0]
+        else:
+            iface_selected = 0
+        return
+
 
     def monitor(self):
         """Monitors WIFI status"""
@@ -144,16 +185,77 @@ class BcastSender(Thread):
         while 1:
             # TODO: add timers to exit when required
             try:
-                print "Sending broadcasting message.."
+                print " >> Sending broadcasting message.."
                 self.sock.sendto("hello", ('255.255.255.255', self.port))
                 time.sleep(1)
             except:
                 traceback.print_exc()
 
+class TrafClient(Thread):
+    """Handles server messages"""
+    def __init__(self, port):
+        """Initializes listening thread"""
+        Thread.__init__(self)
+        self.port = port
+        self.socket_client = None
+        # Determina comandos a utilizar
+
+    def run(self):
+        """Starts listening to connections"""
+        class MessageHandler(SocketServer.StreamRequestHandler):
+            """Handles server messages"""
+            def handle(self):
+                """Handles incoming requests"""
+                addr = self.client_address[0]
+                print "Received request from %s" % addr
+                msg = self.request.recv(1)
+                cmd = struct.unpack('<b', msg)[0]
+                if cmd == COMMAND_START_CAPTURE:
+                    timestamp = self.request.recv(10)
+                    descr = self.request.recv(32)
+                    print "Starting capture to %s (%s)" % (descr, timestamp)
+                    global iface_selected
+                    if iface_selected not in ifaces:
+                        print "!! ERROR!! Capturing interface not selecting, capturing to first available!"
+                        iface_selected = ifaces.keys()[0]
+                    iface_idx = ifaces[iface_selected]
+                    print "Capturing on %s (%s)" % (iface_idx, iface_selected)
+                    run_subprocess(
+                            commands["capture"] % {"iface": iface_idx, "output": "%s.dump" % timestamp}
+                            )
+                elif cmd == COMMAND_STOP_CAPTURE:
+                    run_subprocess(commands["stop"])
+                    print "Stopping capture"
+        self.socket_client = ReusableSocketServer(('', self.port), MessageHandler)
+        while 1:
+            try:
+                self.socket_client.handle_request()
+            except socket.timeout:
+                print "Timeout caught!"
+                continue
+            except:
+                print "Error handling client socket!"
+                break
+
 if __name__ == "__main__":
+    if get_os() == "Linux":
+        print "Rodando em Linux"
+        commands = commands_linux
+    else:
+        print "Rodando em Windows"
+        commands = commands_windows
+
     gtk.gdk.threads_init()
-    print _("Starting GUI..")
+    print _("Starting broadcasting service..")
     bcast = BcastSender(10000)
     bcast.start()
+    print _("Starting listening service..")
+    client = TrafClient(10000)
+    client.start()
+    print _("Starting GUI..")
     gui = trafdump("iface/client.glade")
-    gtk.main()
+    try:
+        gtk.main()
+    except:
+        print "exiting.."
+        sys.exit()
