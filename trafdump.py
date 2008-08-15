@@ -8,7 +8,6 @@ import traceback
 import time
 
 import socket
-import fcntl
 import struct
 
 import os
@@ -301,4 +300,6 @@ if __name__ == "__main__":
     bcast = TrafBroadcast(10000)
     bcast.start()
     print _("Starting GUI..")
+    gtk.gdk.threads_enter()
     gtk.main()
+    gtk.gdk.threads_leave()

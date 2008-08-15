@@ -9,7 +9,6 @@ import time
 
 import socket
 import SocketServer
-import fcntl
 import struct
 
 import os
@@ -219,6 +218,8 @@ class TrafClient(Thread):
                         print "!! ERROR!! Capturing interface not selecting, capturing to first available!"
                         iface_selected = ifaces.keys()[0]
                     iface_idx = ifaces[iface_selected]
+                    # Primeiro, vamos parar as capturas antigas
+                    run_subprocess(commands["stop"])
                     print "Capturing on %s (%s)" % (iface_idx, iface_selected)
                     run_subprocess(
                             commands["capture"] % {"iface": iface_idx, "output": "%s.dump" % timestamp}
@@ -255,7 +256,9 @@ if __name__ == "__main__":
     print _("Starting GUI..")
     gui = trafdump("iface/client.glade")
     try:
+	gtk.gdk.threads_enter()
         gtk.main()
+	gtk.gdk.threads_leave()
     except:
         print "exiting.."
         sys.exit()

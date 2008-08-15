@@ -12,12 +12,12 @@ COMMAND_STOP_CAPTURE=2
 COMMAND_SEND_DATA=3
 
 commands_linux = {
-        "capture": "tshark -q -i %(iface)s -p -w %(output)s",
+        "capture": "tshark -q -i %(iface)s -p -w %(output)s &",
         "stop": "killall tshark",
         "stat": "tshark -q -r %(input)s -z io,phs -z io,stat,1 > %(output)s"
         }
 commands_windows = {
-        "capture": "tshark -q -i %(iface)s -p -w %(output)s",
+        "capture": "start tshark -q -i %(iface)s -p -w %(output)s",
         "stop": "taskkill /im tshark.exe",
         "stat": "tshark -q -r %(input)s -z io,phs -z io,stat,1 > %(output)s"
         }
@@ -25,6 +25,7 @@ commands_windows = {
 def run_subprocess(cmd, background=True):
     """Runs a background command"""
     print "Running: %s" % cmd
+    os.system("%s" % cmd)
     pass
 
 
