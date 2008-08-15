@@ -3,6 +3,8 @@
 Teacher GUI using GLADE
 """
 
+# TODO: detectar quando conexoes nao sao estabelecidas
+
 import sys
 import traceback
 import time

@@ -3,6 +3,11 @@
 Traffic analysis client.
 """
 
+# TODO:
+# - adicionar wireshark no path (!!)
+# - imprimir mensagens no log
+# - pedir para escolher a interface logo na inicializacao
+
 import sys
 import traceback
 import time
