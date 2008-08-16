@@ -33,19 +33,20 @@ class ReusableSocketServer(SocketServer.TCPServer):
     # TODO: allow address reuse
     allow_reuse_address = True
 
-def send_msg(addr, port, cmd, params=None):
+def connect(addr, port):
     """Envia mensagem por socket TCP"""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((addr, port))
+        return s
+    except:
+        traceback.print_exc()
+        return None
         s.send(struct.pack("<b", cmd))
         if params:
             s.send(params)
         s.close()
         return True
-    except:
-        traceback.print_exc()
-        return False
 
 def get_os():
     """Returns the name of the OS"""

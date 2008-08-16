@@ -80,6 +80,8 @@ class trafdump:
         # Mostra as maquinas
         self.MachineLayout.show_all()
 
+        self.curtimestamp = 0
+
     def put_machine(self, machine):
         """Puts a client machine in an empty spot"""
         for y in range(0, MACHINES_Y):
@@ -107,6 +109,9 @@ class trafdump:
                 machine.show_all()
                 self.StatusLabel.set_text("Found %s (%d machines connected)!" % (addr, len(self.machines)))
                 gtk.gdk.threads_leave()
+            else:
+                machine = self.machines[addr]
+                self.tooltip.set_tip(machine, _("Updated on %s" % (time.asctime())))
 
         gobject.timeout_add(1000, self.monitor)
 
@@ -115,16 +120,28 @@ class trafdump:
         # TODO: perguntar o nome do experimento
         self.StartCapture.set_sensitive(False)
         self.StopCapture.set_sensitive(True)
+
+        # atualiza o timestamp do experimento
+        self.curtimestamp = str(int(time.time()))
+
         for z in self.machines:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
                 print "Enviando para %s" % z
                 # enviando mensagem para cliente para iniciar a captura
-                res = send_msg(z, 10000, COMMAND_START_CAPTURE,
-                        params=struct.pack("10s32s", str(int(time.time())), "Experimento")
-                        )
-                if not res:
-                    print "Erro enviando mensagem para %s" % z
+                s = connect(z, 10000)
+                if not s:
+                    print _("Erro conectando a %s!" % z)
+                    return
+                # envia a mensagem
+                try:
+                    s.send(struct.pack("<b", COMMAND_START_CAPTURE))
+                    # envia o timestamp do experimento e a descricao
+                    print self.curtimestamp
+                    s.send(struct.pack("10s32s", self.curtimestamp, "Experimento"))
+                except:
+                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                    return
         print "Captura iniciada"
 
     def stop_capture(self, widget):
@@ -136,9 +153,35 @@ class trafdump:
             if img == self.machines[z].button.img_on:
                 print "Enviando para %s" % z
                 # enviando mensagem para cliente para iniciar a captura
-                res = send_msg(z, 10000, COMMAND_STOP_CAPTURE)
-                if not res:
-                    print "Erro enviando mensagem para %s" % z
+                s = connect(z, 10000)
+                if not s:
+                    print _("Erro conectando a %s!" % z)
+                    return
+                # envia a mensagem
+                try:
+                    s.send(struct.pack("<b", COMMAND_STOP_CAPTURE))
+                except:
+                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                    return
+                # agora vamos receber o arquivo
+                try:
+                    size = struct.unpack("<I",
+                            (s.recv(struct.calcsize("<I")))
+                            )[0]
+                    print size
+                    if size > 0:
+                        print "Recebendo arquivo de %d bytes de %s" % (size, z)
+                    fd = open("results.%s.%s.pcap" % (self.curtimestamp, z), "wb")
+                    while size > 0:
+                        buf = s.recv(size)
+                        fd.write(buf)
+                        size -= len(buf)
+                    fd.close()
+                except:
+                    print "Erro recebendo resultado de %s: %s" % (z, sys.exc_value)
+                    traceback.print_exc()
+                    return
+                # Agora vamos esperar a resposta..
         print "Captura finalizada"
 
     def select_all(self, widget):
@@ -283,7 +326,7 @@ class TrafBroadcast(Thread):
             def handle(self):
                 """Receives a broadcast message"""
                 client = self.client_address[0]
-                print " >> Heartbeat from %s!" % client
+#                print " >> Heartbeat from %s!" % client
                 gui.queue.put(client)
         self.socket_bcast = SocketServer.UDPServer(('', self.port), BcastHandler)
         while 1:

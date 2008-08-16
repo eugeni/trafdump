@@ -34,6 +34,8 @@ __builtin__._ = gettext.gettext
 
 from config import *
 
+DEBUG=False
+
 # configuracoes globais
 commands = None
 ifaces = list_ifaces()
@@ -86,6 +88,7 @@ class trafdump:
         self.IfacesBox.set_active(0)
         self.IfacesBox.connect('changed', self.network_selected)
         self.iface = None
+        self.outfile = None
 
     def network_selected(self, combobox):
         """A network interface was selected"""
@@ -172,16 +175,22 @@ class trafdump:
         button.show_all()
         return button
     # }}}
+    def log(self, text):
+        """Logs a string"""
+        buffer = self.textview1.get_buffer()
+        iter = buffer.get_iter_at_offset(0)
+        buffer.insert(iter, "%s: %s\n" % (time.asctime(), text))
 
 class BcastSender(Thread):
     """Sends broadcast requests"""
-    def __init__(self, port):
+    def __init__(self, port, gui):
         Thread.__init__(self)
         self.port = port
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.sock.bind(('', 0))
+        self.gui = gui
 
     def run(self):
         """Starts threading loop"""
@@ -189,7 +198,8 @@ class BcastSender(Thread):
         while 1:
             # TODO: add timers to exit when required
             try:
-                print " >> Sending broadcasting message.."
+                if DEBUG:
+                    self.gui.log(_("Sending broadcasting message.."))
                 self.sock.sendto("hello", ('255.255.255.255', self.port))
                 time.sleep(1)
             except:
@@ -197,11 +207,13 @@ class BcastSender(Thread):
 
 class TrafClient(Thread):
     """Handles server messages"""
-    def __init__(self, port):
+    def __init__(self, port, gui):
         """Initializes listening thread"""
         Thread.__init__(self)
         self.port = port
         self.socket_client = None
+        self.gui = gui
+        gui.outfile = None
         # Determina comandos a utilizar
 
     def run(self):
@@ -211,27 +223,44 @@ class TrafClient(Thread):
             def handle(self):
                 """Handles incoming requests"""
                 addr = self.client_address[0]
-                print "Received request from %s" % addr
+                gui.log(_("Received request from %s" % addr))
                 msg = self.request.recv(1)
                 cmd = struct.unpack('<b', msg)[0]
                 if cmd == COMMAND_START_CAPTURE:
                     timestamp = self.request.recv(10)
+                    gui.outfile = "%s.pcap" % timestamp
                     descr = self.request.recv(32)
-                    print "Starting capture to %s (%s)" % (descr, timestamp)
+                    gui.log(_("Starting capture to %s (%s)" % (descr, gui.outfile)))
                     global iface_selected
                     if iface_selected not in ifaces:
-                        print "!! ERROR!! Capturing interface not selecting, capturing to first available!"
+                        gui.log(_("\n!! ERROR!! Capturing interface not selecting, capturing to first available!"))
                         iface_selected = ifaces.keys()[0]
                     iface_idx = ifaces[iface_selected]
                     # Primeiro, vamos parar as capturas antigas
                     run_subprocess(commands["stop"])
-                    print "Capturing on %s (%s)" % (iface_idx, iface_selected)
+                    gui.log(_("Capturing on %s (%s)" % (iface_idx, iface_selected)))
                     run_subprocess(
-                            commands["capture"] % {"iface": iface_idx, "output": "%s.dump" % timestamp}
+                            commands["capture"] % {"iface": iface_idx, "output": gui.outfile}
                             )
                 elif cmd == COMMAND_STOP_CAPTURE:
+                    gui.log(_("Stopping capture"))
                     run_subprocess(commands["stop"])
-                    print "Stopping capture"
+                    gui.log(_("Sending results (%s) to server.." % gui.outfile))
+                    try:
+                        fd = open(gui.outfile, "rb")
+                        fd.seek(0, 2)
+                        size = fd.tell()
+                        gui.log(_("%d bytes to send!" % size))
+                        self.request.send(struct.pack("<I", size))
+                        fd.seek(0, 0)
+                        while 1:
+                            buf = fd.read(16384)
+                            if not buf:
+                                break
+                            self.request.send(buf)
+                    except:
+                        gui.log(_("Error: unable to open %s!" % gui.outfile))
+                        self.request.send(struct.pack("<I", 0))
         self.socket_client = ReusableSocketServer(('', self.port), MessageHandler)
         while 1:
             try:
@@ -252,18 +281,19 @@ if __name__ == "__main__":
         commands = commands_windows
 
     gtk.gdk.threads_init()
-    print _("Starting broadcasting service..")
-    bcast = BcastSender(10000)
-    bcast.start()
-    print _("Starting listening service..")
-    client = TrafClient(10000)
-    client.start()
     print _("Starting GUI..")
     gui = trafdump("iface/client.glade")
+    gui.log( _("Starting broadcasting service.."))
+    bcast = BcastSender(10000, gui)
+    bcast.start()
+    gui.log( _("Starting listening service.."))
+    client = TrafClient(10000, gui)
+    client.start()
     try:
-	gtk.gdk.threads_enter()
+        gtk.gdk.threads_enter()
+        gui.log(_("\n\nIMPORTANT!!\nPlease select capturing interface to start the benchmark!!\n\n"))
         gtk.main()
-	gtk.gdk.threads_leave()
+        gtk.gdk.threads_leave()
     except:
         print "exiting.."
         sys.exit()
