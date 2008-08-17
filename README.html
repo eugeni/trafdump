@@ -1,0 +1,98 @@
+<h1>TRAFDUMP</h1>
+
+Sistema de captura e análise do tráfego no laboratório.
+
+<h2>Como utilizar</h2>
+
+<h3>Windows</h3>
+Para utilizar o sistema no ambiente windows:
+<ul>
+ <li>Instalar o wireshark, usando configurações padrão (em c:\program files, ou c:\arquivos de programas);
+ <li>Descompactar o arquivo trafdump_bin.zip. Ele tem dois arquivos executáveis:
+<ul>
+   <li>trafdump.exe:
+<ul>
+     <li>Fica rodando no servidor, controlando os clientes e enviando comandos
+     para eles. Para seu funcionamento correto, é necessário abrir portas
+     10000 TCP e UDP no firewall do windows (as vezes ele não abre elas
+     automaticamente, depende do service pack e configurações do sistema)
+
+     <li>Quando algum cliente entra na rede, ele envia requisição por
+     broadcast UDP na porta 10000, anunciando a sua existência. Quando o
+     servidor recebe esta requisição, ele automaticamente adiciona o
+     cliente na sua interface. A partir disso, é possível utilizar esse
+     cliente para captura de dados.
+
+     <li>Dados são capturados dos clientes cujos icones estão em azul na
+     interface do professor. Os icones pretos são ignorados. Com isso é
+     possível escolher a quantidade certa de máquinas para realizar os
+     experimentos.
+</ul>
+   <li>client.exe
+<ul>
+     <li>Ele fica rodando em cada cliente, recebendo comandos do servidor e
+     executando serviço de captura de trafego do wireshark (tshark).
+
+     <li>Logo após a sua execução, é necessário escolher a placa de rede no
+     canto superior esquerdo da interface. ESSE PASSO É ESENCIAL para
+     captura de dados na placa de rede correta!
+
+     <li>Quando o cliente recebe um comando do professor, ele inicia a captura
+     de dados, salvado-os no arquivo <TIMESTAMP>.pcap. O timestamp é
+     fornecido pelo servidor, com o objetivo de padronizar as capturas nos
+     clientes, mesmo quando o seu relógio local não está sincronizado.
+
+     <li>No fim da captura, o cliente retorna este arquivo para o servidor,
+     que salva ele como:
+<pre>
+       TIMESTAMP.IP_DO_CLIENTE.pcap
+</pre>
+     para processamento posterior. Durante esse passo, o servidor aguarda o
+     recebimento dos arquivos de todos os clientes, sendo que somente é
+     possível realizar uma nova captura depois de que todos os dados são
+     coletados.
+</ul>
+</ul>
+
+<h3>Linux</h3>
+
+Para utilizar o sistema no ambiente Linux:
+<ul>
+ <li>Instalar o wireshark utilizando o gerenciador de pacotes da distribuição
+ Linux utilizada.
+
+ <li>Para utilizar a interface do servidor e do cliente, é necessário
+ instalar os seguintes pacotes:
+<pre>
+   python >= 2.4
+   gtk >= 2.12
+   pygtk >= 2.0
+</pre>
+ (geralmente eles já vem instalados por padrão na maioria das
+  distribuições).
+ <li>O cliente deve ser executado por super-usuário, para ter direitos de
+ captura de pacotes da placa de rede (por exemplo, usando sudo).
+ <li>O funcionamento do ambiente é idéntico ao sistema Windows.
+</ul>
+
+<h3>Bugs conhecidos</h3>
+
+Nesta primeira versão, os seguintes problemas podem acontecer:
+<ul>
+ <li> (Windows) No fim da captura, o cliente pode mostrar mensagem dizendo que
+ o log de execução está disponível no arquivo client.log. Este log contem
+ informações internas do GTK, e pode ser consultado em caso de problemas.
+
+ <li> (Linux) Caso o usuário atual não tem permissão de escrita no diretório
+ onde o cliente está executado, o tshark retorna um erro dizendo que não é
+ possível escrever no arquivo (mesmo executando como super-usuário). Para
+ solucionar isso, execute "chmod 777 ." para deixar o diretório atual
+ acessível para o super-usuário. Lembre-se de voltar permissões anteriores
+ ao diretório depois!
+
+ <li> O servidor na versão atual não mostra mensagens quando os clientes não
+ estão mais disponíveis, escrevendo-as somente no log do sistema.
+
+ <li> O servidor atualmente não pergunta a descrição do experimento atual.
+
+Todos esses bugs serão arrumados na próxima versão do aplicativo.
