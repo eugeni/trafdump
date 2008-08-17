@@ -38,7 +38,7 @@ DEBUG=False
 
 # configuracoes globais
 commands = None
-ifaces = list_ifaces()
+ifaces = None
 iface_selected = 0
 
 class trafdump:
@@ -245,6 +245,8 @@ class TrafClient(Thread):
                 elif cmd == COMMAND_STOP_CAPTURE:
                     gui.log(_("Stopping capture"))
                     run_subprocess(commands["stop"])
+                    # espera ate salvar tudo
+                    time.sleep(1)
                     gui.log(_("Sending results (%s) to server.." % gui.outfile))
                     try:
                         fd = open(gui.outfile, "rb")
@@ -278,8 +280,16 @@ if __name__ == "__main__":
         commands = commands_linux
     else:
         print "Rodando em Windows"
+        print "Adicionando caminho-padrao do Wireshark no PATH"
+        # Vamos adicionar o que falta no PATH
+        path = os.getenv("path")
+        programfiles = os.getenv("ProgramFiles")
+        path += ";%s\\Wireshark" % programfiles
+        os.putenv("path", path)
         commands = commands_windows
 
+    # Atualizando a lista de interfaces
+    ifaces = list_ifaces()
     gtk.gdk.threads_init()
     print _("Starting GUI..")
     gui = trafdump("iface/client.glade")
