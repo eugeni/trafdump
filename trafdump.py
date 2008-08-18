@@ -157,7 +157,7 @@ class trafdump:
             if img == self.machines[z].button.img_on:
                 print "Enviando para %s" % z
                 # enviando mensagem para cliente para iniciar a captura
-                s = connect(z, 10000)
+                s = connect(z, 10000, timeout=3)
                 if not s:
                     print _("Erro conectando a %s!" % z)
                     return

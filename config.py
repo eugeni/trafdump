@@ -33,11 +33,13 @@ class ReusableSocketServer(SocketServer.TCPServer):
     # TODO: allow address reuse
     allow_reuse_address = True
 
-def connect(addr, port):
+def connect(addr, port, timeout=None):
     """Envia mensagem por socket TCP"""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((addr, port))
+        if timeout:
+            s.settimeout(timeout)
         return s
     except:
         traceback.print_exc()
