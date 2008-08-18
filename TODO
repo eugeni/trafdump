@@ -1,2 +1,4 @@
 Create windows installer.
 Notify to open 10000 UDP/TCP port.
+
+Detailed error messages (i.e., timeout, etc).
