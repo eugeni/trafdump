@@ -62,6 +62,6 @@ def list_ifaces():
     list = os.popen("tshark -D").readlines()
     ifaces = {}
     for z in list:
-        id, iface = z.strip().split(".")
+        id, iface = z.strip().split(".", 1)
         ifaces[iface] = id
     return ifaces
