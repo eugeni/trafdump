@@ -143,6 +143,8 @@ class trafdump:
                     s.send(struct.pack("10s32s", self.curtimestamp, "Experimento"))
                 except:
                     print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                    self.machines[z].button.set_image(self.machines[z].button.img_off)
+                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
                     return
         print "Captura iniciada"
 
@@ -164,6 +166,8 @@ class trafdump:
                     s.send(struct.pack("<b", COMMAND_STOP_CAPTURE))
                 except:
                     print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                    self.machines[z].button.set_image(self.machines[z].button.img_off)
+                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
                     return
                 # agora vamos receber o arquivo
                 try:
@@ -181,6 +185,8 @@ class trafdump:
                     fd.close()
                 except:
                     print "Erro recebendo resultado de %s: %s" % (z, sys.exc_value)
+                    self.machines[z].button.set_image(self.machines[z].button.img_off)
+                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
                     traceback.print_exc()
                     return
                 # Agora vamos esperar a resposta..

@@ -212,7 +212,9 @@ class BcastSender(Thread):
                 self.sock.sendto("hello", ('255.255.255.255', self.port))
                 time.sleep(1)
             except:
+                gui.log("Error sending broadcast message: %s" % sys.exc_value)
                 traceback.print_exc()
+                time.sleep(1)
 
 class TrafClient(Thread):
     """Handles server messages"""
