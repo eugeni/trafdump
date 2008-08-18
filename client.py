@@ -89,6 +89,9 @@ class trafdump:
         self.IfacesBox.connect('changed', self.network_selected)
         self.iface = None
         self.outfile = None
+        # Inicializa as threads
+        self.bcast = BcastSender(10000, self)
+        self.client = TrafClient(10000, self)
 
     def network_selected(self, combobox):
         """A network interface was selected"""
@@ -97,10 +100,14 @@ class trafdump:
         global iface_selected
         if index > 0:
             iface_selected = model[index][0]
+            gui.log( _("Capturing on %s") % iface_selected)
+            gui.log( _("Starting broadcasting service.."))
+            self.bcast.start()
+            gui.log( _("Starting listening service.."))
+            self.client.start()
         else:
             iface_selected = 0
         return
-
 
     def monitor(self):
         """Monitors WIFI status"""
@@ -175,10 +182,12 @@ class trafdump:
         button.show_all()
         return button
     # }}}
+
     def log(self, text):
         """Logs a string"""
         buffer = self.textview1.get_buffer()
         iter = buffer.get_iter_at_offset(0)
+        print text
         buffer.insert(iter, "%s: %s\n" % (time.asctime(), text))
 
 class BcastSender(Thread):
@@ -229,8 +238,10 @@ class TrafClient(Thread):
                 if cmd == COMMAND_START_CAPTURE:
                     timestamp = self.request.recv(10)
                     gui.outfile = "%s.pcap" % timestamp
-                    descr = self.request.recv(32)
-                    gui.log(_("Starting capture to %s (%s)" % (descr, gui.outfile)))
+                    descr_r = str(self.request.recv(32))
+                    descr = struct.unpack("32s", descr_r)[0]
+                    print descr
+                    gui.log(_("Starting capture to %s") % (gui.outfile))
                     global iface_selected
                     if iface_selected not in ifaces:
                         gui.log(_("\n!! ERROR!! Capturing interface not selecting, capturing to first available!"))
@@ -293,12 +304,6 @@ if __name__ == "__main__":
     gtk.gdk.threads_init()
     print _("Starting GUI..")
     gui = trafdump("iface/client.glade")
-    gui.log( _("Starting broadcasting service.."))
-    bcast = BcastSender(10000, gui)
-    bcast.start()
-    gui.log( _("Starting listening service.."))
-    client = TrafClient(10000, gui)
-    client.start()
     try:
         gtk.gdk.threads_enter()
         gui.log(_("\n\nIMPORTANT!!\nPlease select capturing interface to start the benchmark!!\n\n"))
