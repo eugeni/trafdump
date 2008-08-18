@@ -42,11 +42,6 @@ def connect(addr, port):
     except:
         traceback.print_exc()
         return None
-        s.send(struct.pack("<b", cmd))
-        if params:
-            s.send(params)
-        s.close()
-        return True
 
 def get_os():
     """Returns the name of the OS"""

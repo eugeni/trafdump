@@ -132,6 +132,8 @@ class trafdump:
                 s = connect(z, 10000)
                 if not s:
                     print _("Erro conectando a %s!" % z)
+                    self.machines[z].button.set_image(self.machines[z].button.img_off)
+                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
                     return
                 # envia a mensagem
                 try:
