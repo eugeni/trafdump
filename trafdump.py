@@ -66,6 +66,7 @@ class trafdump:
         self.UnselectAllButton.connect('clicked', self.unselect_all)
         self.StartCapture.connect('clicked', self.start_capture)
         self.StopCapture.connect('clicked', self.stop_capture)
+        self.BandwidthButton.connect('clicked', self.bandwidth)
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
@@ -80,7 +81,32 @@ class trafdump:
         # Mostra as maquinas
         self.MachineLayout.show_all()
 
+        # inicializa o timestamp
         self.curtimestamp = 0
+
+    def question(self, title, input=None):
+        """Asks a question :)"""
+        # cria a janela do dialogo
+        dialog = gtk.Dialog(_("Question"), self.MainWindow, 0,
+                (gtk.STOCK_OK, gtk.RESPONSE_OK,
+                gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
+        dialogLabel = gtk.Label(title)
+        dialog.vbox.add(dialogLabel)
+        dialog.vbox.set_border_width(8)
+        if input:
+            entry = gtk.Entry()
+            dialog.vbox.add(entry)
+        dialog.show_all()
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            dialog.destroy()
+            if input:
+                return entry.get_text()
+            else:
+                return True
+        else:
+            dialog.destroy()
+            return None
 
     def put_machine(self, machine):
         """Puts a client machine in an empty spot"""
@@ -115,6 +141,63 @@ class trafdump:
 
         gobject.timeout_add(1000, self.monitor)
 
+    def bandwidth(self, widget):
+        """Inicia a captura"""
+        # TODO: perguntar o nome do experimento
+        self.StartCapture.set_sensitive(False)
+        self.StopCapture.set_sensitive(False)
+
+        for z in self.machines:
+            img = self.machines[z].button.get_image()
+            if img == self.machines[z].button.img_on:
+                print "Enviando para %s" % z
+                # enviando mensagem para cliente para iniciar a captura
+                s = connect(z, LISTENPORT, timeout=5)
+                if not s:
+                    print _("Erro conectando a %s!" % z)
+                    self.machines[z].button.set_image(self.machines[z].button.img_off)
+                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
+                    return
+                # envia a mensagem
+                try:
+                    s.send(struct.pack("<b", COMMAND_BANDWIDTH))
+                    # envia o timestamp do experimento e a descricao
+                    print "upload"
+                    t1 = time.time()
+                    tosend = BANDWIDTH_BUFSIZE
+                    # temporary packet
+                    packet = " " * 65536
+                    while tosend > 0:
+                        if tosend > 65536:
+                            sendl = 65536
+                        else:
+                            sendl = tosend
+                        count = s.send(packet[:sendl])
+                        tosend -= count
+                        print "Sent: %d, to go: %d" % (count, tosend)
+                    t2 = time.time()
+                    print "Bandwidth: %f (%f sec)" % (float(BANDWIDTH_BUFSIZE / (t2 - t1)), (t2 - t1))
+                    print "download"
+                    t3 = time.time()
+                    tosend = BANDWIDTH_BUFSIZE
+                    # temporary packet
+                    while tosend > 0:
+                        data = s.recv(65536)
+                        if not data:
+                            print "Error: no data received!"
+                            return
+                        print "Received: %d" % len(data)
+                        tosend -= len(data)
+                    t4 = time.time()
+                    print "Bandwidth: %f (%f sec)" % (float(BANDWIDTH_BUFSIZE / (t4 - t3)), (t4 - t3))
+                except:
+                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                    traceback.print_exc()
+                    self.machines[z].button.set_image(self.machines[z].button.img_off)
+                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
+                    return
+        print "Captura iniciada"
+
     def start_capture(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
@@ -129,7 +212,7 @@ class trafdump:
             if img == self.machines[z].button.img_on:
                 print "Enviando para %s" % z
                 # enviando mensagem para cliente para iniciar a captura
-                s = connect(z, 10000, timeout=5)
+                s = connect(z, LISTENPORT, timeout=5)
                 if not s:
                     print _("Erro conectando a %s!" % z)
                     self.machines[z].button.set_image(self.machines[z].button.img_off)
@@ -157,7 +240,7 @@ class trafdump:
             if img == self.machines[z].button.img_on:
                 print "Enviando para %s" % z
                 # enviando mensagem para cliente para iniciar a captura
-                s = connect(z, 10000, timeout=3)
+                s = connect(z, LISTENPORT, timeout=3)
                 if not s:
                     print _("Erro conectando a %s!" % z)
                     return
@@ -194,6 +277,9 @@ class trafdump:
 
     def select_all(self, widget):
         """Selects all machines"""
+        self.question("Pergunta1")
+        ret = self.question("Nome do experimento:", True)
+        print ret
         for z in self.machines.values():
             z.button.set_image(z.button.img_on)
 
@@ -350,7 +436,7 @@ class TrafBroadcast(Thread):
 if __name__ == "__main__":
     gtk.gdk.threads_init()
     print _("Starting broadcast..")
-    bcast = TrafBroadcast(10000)
+    bcast = TrafBroadcast(LISTENPORT)
     bcast.start()
     print _("Starting GUI..")
     gtk.gdk.threads_enter()

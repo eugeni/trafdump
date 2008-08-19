@@ -7,9 +7,13 @@ import traceback
 import struct
 import SocketServer
 
+LISTENPORT = 10001
+
 COMMAND_START_CAPTURE=1
 COMMAND_STOP_CAPTURE=2
-COMMAND_SEND_DATA=3
+COMMAND_BANDWIDTH=3
+
+BANDWIDTH_BUFSIZE = 10 * 1000 * 1000
 
 commands_linux = {
         "capture": "tshark -q -i %(iface)s -p -w %(output)s &",

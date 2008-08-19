@@ -90,11 +90,12 @@ class trafdump:
         self.iface = None
         self.outfile = None
         # Inicializa as threads
-        self.bcast = BcastSender(10000, self)
-        self.client = TrafClient(10000, self)
+        self.bcast = BcastSender(LISTENPORT, self)
+        self.client = TrafClient(LISTENPORT, self)
 
     def network_selected(self, combobox):
         """A network interface was selected"""
+        combobox.set_sensitive(False)
         model = combobox.get_model()
         index = combobox.get_active()
         global iface_selected
@@ -276,6 +277,30 @@ class TrafClient(Thread):
                     except:
                         gui.log(_("Error: unable to open %s!" % gui.outfile))
                         self.request.send(struct.pack("<I", 0))
+                elif cmd == COMMAND_BANDWIDTH:
+                    gui.log(_("Testing bandwidth"))
+                    try:
+                        # download
+                        toread = BANDWIDTH_BUFSIZE
+                        while toread > 0:
+                            data = self.request.recv(65536)
+                            if not data:
+                                gui.log(_("Error: no data received!"))
+                                return
+                            toread -= len(data)
+                            print "Received %d, to go: %d" % (len(data), toread)
+                        # upload
+                        print "Now sending data"
+                        tosend = BANDWIDTH_BUFSIZE
+                        # temporary packet
+                        packet = " " * 65536
+                        while tosend > 0:
+                            count = self.request.send(packet)
+                            tosend -= count
+                            print "Sent: %d, to go: %d" % (count, tosend)
+                    except:
+                        gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
+
         self.socket_client = ReusableSocketServer(('', self.port), MessageHandler)
         while 1:
             try:
