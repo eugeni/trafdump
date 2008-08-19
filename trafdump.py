@@ -277,9 +277,9 @@ class trafdump:
 
     def select_all(self, widget):
         """Selects all machines"""
-        self.question("Pergunta1")
-        ret = self.question("Nome do experimento:", True)
-        print ret
+#        self.question("Pergunta1")
+#        ret = self.question("Nome do experimento:", True)
+#        print ret
         for z in self.machines.values():
             z.button.set_image(z.button.img_on)
 

@@ -7,7 +7,7 @@ import traceback
 import struct
 import SocketServer
 
-LISTENPORT = 10001
+LISTENPORT = 10000
 
 COMMAND_START_CAPTURE=1
 COMMAND_STOP_CAPTURE=2
