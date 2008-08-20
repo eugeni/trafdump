@@ -147,6 +147,13 @@ class trafdump:
         self.StartCapture.set_sensitive(False)
         self.StopCapture.set_sensitive(False)
 
+        timestamp_bandwidth = str(int(time.time()))
+        self.curtimestamp = str(int(time.time()))
+
+        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
+        fd.write(_("Bandwidth evaluation experiment.\n"))
+        fd.close()
+
         for z in self.machines:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
@@ -162,7 +169,6 @@ class trafdump:
                 try:
                     s.send(struct.pack("<b", COMMAND_BANDWIDTH))
                     # envia o timestamp do experimento e a descricao
-                    print "upload"
                     t1 = time.time()
                     tosend = BANDWIDTH_BUFSIZE
                     # temporary packet
@@ -175,8 +181,9 @@ class trafdump:
                         count = s.send(packet[:sendl])
                         tosend -= count
                     t2 = time.time()
-                    print "Bandwidth: %f (%f sec)" % (float(BANDWIDTH_BUFSIZE / (t2 - t1)), (t2 - t1))
-                    print "download"
+                    time_up = t2 - t1
+                    bandwidth_up = float(BANDWIDTH_BUFSIZE / time_up)
+                    print "Upload bandwidth: %f (%f sec)" % (bandwidth_up, time_up)
                     t3 = time.time()
                     tosend = BANDWIDTH_BUFSIZE
                     # temporary packet
@@ -187,7 +194,12 @@ class trafdump:
                             return
                         tosend -= len(data)
                     t4 = time.time()
-                    print "Bandwidth: %f (%f sec)" % (float(BANDWIDTH_BUFSIZE / (t4 - t3)), (t4 - t3))
+                    time_down = t4 - t3
+                    bandwidth_down = float(BANDWIDTH_BUFSIZE / time_down)
+                    print "Download bandwidth: %f (%f sec)" % (bandwidth_down, time_down)
+                    fd = open("results.%s.%s.band" % (timestamp_bandwidth, z), "w")
+                    fd.write("Buffer size: %d\nUpload: %f sec, %f bytes/sec\nDownload: %f sec, %f bytes/sec\n" % (BANDWIDTH_BUFSIZE, time_up, bandwidth_up, time_down, bandwidth_down))
+                    fd.close()
                 except:
                     print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
                     traceback.print_exc()
@@ -199,11 +211,18 @@ class trafdump:
     def start_capture(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
+        descr = self.question(_("Describe the experiment"), True)
+        if not descr:
+            return
         self.StartCapture.set_sensitive(False)
         self.StopCapture.set_sensitive(True)
 
         # atualiza o timestamp do experimento
         self.curtimestamp = str(int(time.time()))
+
+        fd = open("results.%s.txt" % self.curtimestamp, "w")
+        fd.write("%s\n" % descr)
+        fd.close()
 
         for z in self.machines:
             img = self.machines[z].button.get_image()
@@ -221,7 +240,7 @@ class trafdump:
                     s.send(struct.pack("<b", COMMAND_START_CAPTURE))
                     # envia o timestamp do experimento e a descricao
                     print self.curtimestamp
-                    s.send(struct.pack("10s32s", self.curtimestamp, "Experimento"))
+                    s.send(struct.pack("10s32s", self.curtimestamp, descr))
                 except:
                     print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
                     self.machines[z].button.set_image(self.machines[z].button.img_off)
