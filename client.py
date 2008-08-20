@@ -288,7 +288,6 @@ class TrafClient(Thread):
                                 gui.log(_("Error: no data received!"))
                                 return
                             toread -= len(data)
-                            print "Received %d, to go: %d" % (len(data), toread)
                         # upload
                         print "Now sending data"
                         tosend = BANDWIDTH_BUFSIZE
@@ -297,7 +296,6 @@ class TrafClient(Thread):
                         while tosend > 0:
                             count = self.request.send(packet)
                             tosend -= count
-                            print "Sent: %d, to go: %d" % (count, tosend)
                     except:
                         gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
 

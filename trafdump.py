@@ -174,7 +174,6 @@ class trafdump:
                             sendl = tosend
                         count = s.send(packet[:sendl])
                         tosend -= count
-                        print "Sent: %d, to go: %d" % (count, tosend)
                     t2 = time.time()
                     print "Bandwidth: %f (%f sec)" % (float(BANDWIDTH_BUFSIZE / (t2 - t1)), (t2 - t1))
                     print "download"
@@ -186,7 +185,6 @@ class trafdump:
                         if not data:
                             print "Error: no data received!"
                             return
-                        print "Received: %d" % len(data)
                         tosend -= len(data)
                     t4 = time.time()
                     print "Bandwidth: %f (%f sec)" % (float(BANDWIDTH_BUFSIZE / (t4 - t3)), (t4 - t3))
