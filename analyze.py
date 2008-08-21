@@ -13,7 +13,7 @@ def printts(ts):
     return time.asctime(time.localtime(int(ts)))
 
 # {{{ list_results
-def list_results():
+def list_results(results_dir):
     """Monta a lista dos experimentos"""
     exp_r = re.compile('results.(\d+).txt')
     clients_tshark_r = re.compile('results.\d+.(\d+\.\d+\.\d+\.\d+).pcap')
@@ -67,6 +67,7 @@ def list_results():
                 clients.append(client)
             experiment['throughput'] = clients
         experiments[timestamp] = experiment
+    # volta para diretorio anterior
     return experiments
 # }}}
 
@@ -165,11 +166,45 @@ def generate_report(experiments, output=sys.stdout):
     """Gera o relatorio de tudo"""
     for ts in experiments:
         experiment = experiments[ts]
+        title = experiment['title']
+        date = printts(ts)
         print experiment
-        pass
+        timelines = []
+        total_trafs = []
+        myth_trafs = []
+        curfigure = 0
+        for client in experiment['clients']:
+            timeline_sec, total_traf = exp_totaltraf("results.%s.%s.pcap" % (ts, client))
+            timeline_sec_myth, total_traf_myth = exp_trafmyth("results.%s.%s.pcap" % (ts, client))
+            total_trafs.append((client, timeline_sec, total_traf))
+            myth_trafs.append((client, timeline_sec_myth, total_traf_myth))
+            print client
+        pylab.figure(curfigure)
+        pylab.title("%s\n%s" % (title, date))
+        pylab.xlabel("Execution timeline")
+        pylab.ylabel("Traffic (bytes)")
+        for client, timeline, traf in total_trafs:
+            pylab.plot(timeline, traf, label="Total traffic for %s" % client)
+        for client, timeline, traf in myth_trafs:
+            pylab.plot(timeline, traf, label="Mythware traffic for %s" % client)
+        pylab.legend()
+        pylab.show()
+        curfigure += 1
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print "Usage: %s <results directory>"
+        sys.exit(1)
+    results_dir = sys.argv[1]
+    curdir = os.getcwd()
+    try:
+        os.chdir(results_dir)
+    except:
+        print "Error: unable to enter %s: %s!" % (results_dir, sys.exc_value)
+        sys.exit(1)
     print "Processing log files.."
-    experiments  = list_results()
-    generate_report(experiments)
+    experiments  = list_results(results_dir)
+    if experiments:
+        generate_report(experiments)
+    os.chdir(curdir)
