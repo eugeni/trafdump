@@ -9,6 +9,8 @@ import time
 
 import pylab
 
+INTERVAL=0.1
+
 def printts(ts):
     return time.asctime(time.localtime(int(ts)))
 
@@ -150,7 +152,7 @@ def exp_summary(timestamp, client):
 # }}}
 
 # {{{ exp_totaltraf
-def exp_totaltraf(file, output=sys.stdout, interval=1):
+def exp_totaltraf(file, output=sys.stdout, interval=INTERVAL):
     """Calcula a distribuicao do trafego ao longo do tempo"""
     traf_r = re.compile("(\d+.\d+)-(\d+.\d+)\s*(\d+)\s*(\d+)")
     data = parse_tshark(file, "-z io,stat,%s" % interval)
@@ -164,7 +166,7 @@ def exp_totaltraf(file, output=sys.stdout, interval=1):
 # }}}
 
 # {{{ exp_trafmythscreen
-def exp_trafmythscreen(file, output=sys.stdout, interval=1):
+def exp_trafmythscreen(file, output=sys.stdout, interval=INTERVAL):
     """Calcula a distribuicao do trafego ao longo do tempo"""
     traf_r = re.compile("(\d+.\d+)-(\d+.\d+)\s*(\d+)\s*(\d+)")
     data = parse_tshark(file, "-z io,stat,%s,ip.dst==225.2.41.11" % interval)
@@ -181,7 +183,7 @@ def exp_trafmythscreen(file, output=sys.stdout, interval=1):
 # }}}
 
 # {{{ exp_trafmythfile
-def exp_trafmythfile(file, output=sys.stdout, interval=1):
+def exp_trafmythfile(file, output=sys.stdout, interval=INTERVAL):
     """Calcula a distribuicao do trafego ao longo do tempo"""
     traf_r = re.compile("(\d+.\d+)-(\d+.\d+)\s*(\d+)\s*(\d+)")
     data = parse_tshark(file, "-z io,stat,%s,ip.dst==225.2.41.12" % interval)
@@ -200,6 +202,7 @@ def exp_trafmythfile(file, output=sys.stdout, interval=1):
 # {{{ generate_report
 def generate_report(experiments, output=sys.stdout):
     """Gera o relatorio de tudo"""
+    # {{{ html header
     print >>output, """
     <html>
     <head>
@@ -239,6 +242,7 @@ function toggle(whichLayer)
     <h2>Contents</h2>
     <ul>
     """
+    # }}}
 
     # monta o conteudo
     for ts, experiment in experiments:
@@ -377,7 +381,7 @@ function toggle(whichLayer)
             <a href="img.%(ts)s.%(client)s.mythscreentraf.png">
             <img src="img.%(ts)s.%(client)s.mythscreentraf.png" width="420" height="420">
             </a>
-            <a href="img.%(ts)s.%(client)s.mythscreentraf.png">
+            <a href="img.%(ts)s.%(client)s.mythfiletraf.png">
             <img src="img.%(ts)s.%(client)s.mythfiletraf.png" width="420" height="420">
             </a>
             </div>
@@ -495,7 +499,7 @@ function toggle(whichLayer)
             <a href="img.%(ts)s.totalmythscreentraf.png">
             <img src="img.%(ts)s.totalmythscreentraf.png" width="420" height="420">
             </a>
-            <a href="img.%(ts)s.mythscreentraf.png">
+            <a href="img.%(ts)s.totalmythfiletraf.png">
             <img src="img.%(ts)s.totalmythfiletraf.png" width="420" height="420">
             </a>
             </div>
