@@ -2,3 +2,11 @@ Create windows installer.
 Notify to open 10000 UDP/TCP port.
 
 Detailed error messages (i.e., timeout, etc).
+Processar os dados:
+ - Determinar o nome do experimento a partir de results.ts.txt
+ - Determinar os clientes a partir de results.ts.<string>.<ext>
+ - ext == pcap:
+   - tshark -q -r <file> -z io,phs -z io,stat,1 # calcula o trafego por segundo e o resumo dos protocolos
+   - tshark -q -r <file> -z io,phs -z io,stat,1 # calcula o trafego por segundo
+   - Mensagens multicast: dados: ip.dst == 225.2.41.11 - tshark -q -r results.1219279067.192.168.1.3.pcap -z io,stat,0.1,ip.dst==225.2.41.11
+                          bcast: ip.dst == 224.40.40.42 - tshark -q -r results.1219279067.192.168.1.3.pcap -z io,stat,0.1,ip.dst==224.40.40.42
