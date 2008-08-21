@@ -145,11 +145,28 @@ def exp_totaltraf(file, output=sys.stdout, interval=1):
     return timeline, traf
 # }}}
 
-# {{{ exp_trafmyth
-def exp_trafmyth(file, output=sys.stdout, interval=1):
+# {{{ exp_trafmythscreen
+def exp_trafmythscreen(file, output=sys.stdout, interval=1):
     """Calcula a distribuicao do trafego ao longo do tempo"""
     traf_r = re.compile("(\d+.\d+)-(\d+.\d+)\s*(\d+)\s*(\d+)")
     data = parse_tshark(file, "-z io,stat,%s,ip.dst==225.2.41.11" % interval)
+    res = traf_r.findall("\n".join(data[5:]))
+    timeline = []
+    traf = []
+    for start, end, frames, bytes in res:
+        bytes = int(bytes)
+        if bytes == 0:
+            continue
+        timeline.append(float(start))
+        traf.append(bytes)
+    return timeline, traf
+# }}}
+
+# {{{ exp_trafmythfile
+def exp_trafmythfile(file, output=sys.stdout, interval=1):
+    """Calcula a distribuicao do trafego ao longo do tempo"""
+    traf_r = re.compile("(\d+.\d+)-(\d+.\d+)\s*(\d+)\s*(\d+)")
+    data = parse_tshark(file, "-z io,stat,%s,ip.dst==225.2.41.12" % interval)
     res = traf_r.findall("\n".join(data[5:]))
     timeline = []
     traf = []
@@ -171,22 +188,33 @@ def generate_report(experiments, output=sys.stdout):
         print experiment
         timelines = []
         total_trafs = []
-        myth_trafs = []
+        myth_traf_screen = []
+        myth_traf_file = []
         curfigure = 0
         for client in experiment['clients']:
             timeline_sec, total_traf = exp_totaltraf("results.%s.%s.pcap" % (ts, client))
-            timeline_sec_myth, total_traf_myth = exp_trafmyth("results.%s.%s.pcap" % (ts, client))
+            timeline_sec_myth_screen, total_traf_myth_screen = exp_trafmythscreen("results.%s.%s.pcap" % (ts, client))
+            timeline_sec_myth_file, total_traf_myth_file = exp_trafmythfile("results.%s.%s.pcap" % (ts, client))
             total_trafs.append((client, timeline_sec, total_traf))
-            myth_trafs.append((client, timeline_sec_myth, total_traf_myth))
-            print client
+            myth_traf_screen.append((client, timeline_sec_myth_screen, total_traf_myth_screen))
+            myth_traf_file.append((client, timeline_sec_myth_file, total_traf_myth_file))
+            # calcula o tempo que demorou
+            if timeline_sec_myth_screen:
+                elapsed_time = max(timeline_sec_myth_screen) - min(timeline_sec_myth_screen)
+                print "%s: sending screen: %f sec" % (client, elapsed_time)
+            if timeline_sec_myth_file:
+                elapsed_time = max(timeline_sec_myth_file) - min(timeline_sec_myth_file)
+                print "%s: sending files: %f sec" % (client, elapsed_time)
         pylab.figure(curfigure)
         pylab.title("%s\n%s" % (title, date))
         pylab.xlabel("Execution timeline")
         pylab.ylabel("Traffic (bytes)")
         for client, timeline, traf in total_trafs:
             pylab.plot(timeline, traf, label="Total traffic for %s" % client)
-        for client, timeline, traf in myth_trafs:
-            pylab.plot(timeline, traf, label="Mythware traffic for %s" % client)
+        for client, timeline, traf in myth_traf_screen:
+            pylab.plot(timeline, traf, label="Screen traffic for %s" % client)
+        for client, timeline, traf in myth_traf_file:
+            pylab.plot(timeline, traf, label="File traffic for %s" % client)
         pylab.legend()
         pylab.show()
         curfigure += 1
