@@ -144,8 +144,7 @@ class trafdump:
     def bandwidth(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
-        self.StartCapture.set_sensitive(False)
-        self.StopCapture.set_sensitive(False)
+        self.BandwidthButton.set_sensitive(False)
 
         timestamp_bandwidth = str(int(time.time()))
         self.curtimestamp = str(int(time.time()))
@@ -154,6 +153,7 @@ class trafdump:
         fd.write(_("Bandwidth evaluation experiment.\n"))
         fd.close()
 
+        print "Captura iniciada"
         for z in self.machines:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
@@ -206,7 +206,7 @@ class trafdump:
                     self.machines[z].button.set_image(self.machines[z].button.img_off)
                     self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
                     return
-        print "Captura iniciada"
+        self.BandwidthButton.set_sensitive(True)
 
     def start_capture(self, widget):
         """Inicia a captura"""
