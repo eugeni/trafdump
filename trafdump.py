@@ -33,13 +33,184 @@ from config import *
 MACHINES_X = 8
 MACHINES_Y = 8
 
-class trafdump:
+# {{{ TrafdumpRunner
+class TrafdumpRunner(Thread):
+    selected_machines = 0
+    """TrafDump service"""
+    def __init__(self, gui):
+        """Initializes the benchmarking thread"""
+        Thread.__init__(self)
+
+        # GUI
+        self.gui = gui
+        self.gui.set_service(self)
+
+        # connected machines
+        self.machines = []
+
+        # inicializa o timestamp
+        self.curtimestamp = 0
+
+        # experiments queue
+        self.experiments = Queue.Queue()
+
+    def bandwidth(self, machines):
+        """Inicia a captura"""
+
+        timestamp_bandwidth = str(int(time.time()))
+
+        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
+        fd.write(_("Bandwidth evaluation experiment.\n"))
+        fd.close()
+
+        print "Captura iniciada"
+        for z in machines:
+            print "Enviando para %s" % z
+            # enviando mensagem para cliente para iniciar a captura
+            s = connect(z, LISTENPORT, timeout=5)
+            if not s:
+                print _("Erro conectando a %s!" % z)
+                traceback.print_exc()
+                # Marca a maquina como offline
+                self.gui.set_offline(z)
+
+            # envia a mensagem
+            try:
+                s.send(struct.pack("<b", COMMAND_BANDWIDTH))
+                # envia o timestamp do experimento e a descricao
+                t1 = time.time()
+                tosend = BANDWIDTH_BUFSIZE
+                # temporary packet
+                packet = " " * 65536
+                while tosend > 0:
+                    if tosend > 65536:
+                        sendl = 65536
+                    else:
+                        sendl = tosend
+                    count = s.send(packet[:sendl])
+                    tosend -= count
+                t2 = time.time()
+                time_up = t2 - t1
+                bandwidth_up = float(BANDWIDTH_BUFSIZE / time_up)
+                print "Upload bandwidth: %f (%f sec)" % (bandwidth_up, time_up)
+                t3 = time.time()
+                tosend = BANDWIDTH_BUFSIZE
+                # temporary packet
+                while tosend > 0:
+                    data = s.recv(65536)
+                    if not data:
+                        print "Error: no data received!"
+                        return
+                    tosend -= len(data)
+                t4 = time.time()
+                time_down = t4 - t3
+                bandwidth_down = float(BANDWIDTH_BUFSIZE / time_down)
+                print "Download bandwidth: %f (%f sec)" % (bandwidth_down, time_down)
+                fd = open("results.%s.%s.band" % (timestamp_bandwidth, z), "w")
+                fd.write("Buffer size: %d\nUpload: %f sec, %f bytes/sec\nDownload: %f sec, %f bytes/sec\n" % (BANDWIDTH_BUFSIZE, time_up, bandwidth_up, time_down, bandwidth_down))
+                fd.close()
+            except:
+                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                traceback.print_exc()
+                # Marca a maquina como offline
+                self.gui.set_offline(z)
+        time.sleep(5)
+        self.gui.finish_bandwidth()
+
+    def start_capture(self, machines, descr):
+        """Inicia a captura"""
+
+        # atualiza o timestamp do experimento
+        self.curtimestamp = str(int(time.time()))
+
+        fd = open("results.%s.txt" % self.curtimestamp, "w")
+        fd.write("%s\n" % descr)
+        fd.close()
+
+        for z in machines:
+            print "Enviando para %s" % z
+            # enviando mensagem para cliente para iniciar a captura
+            s = connect(z, LISTENPORT, timeout=5)
+            if not s:
+                print _("Erro conectando a %s!" % z)
+                self.gui.set_offline(z, _("Unable to connect to %s!") % z)
+            # envia a mensagem
+            try:
+                s.send(struct.pack("<b", COMMAND_START_CAPTURE))
+                # envia o timestamp do experimento e a descricao
+                print self.curtimestamp
+                s.send(struct.pack("10s32s", self.curtimestamp, descr))
+            except:
+                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
+        print "Captura iniciada"
+        self.gui.capture_started()
+
+    def stop_capture(self, machines):
+        """Termina a captura"""
+        for z in machines:
+            print "Enviando para %s" % z
+            # enviando mensagem para cliente para iniciar a captura
+            s = connect(z, LISTENPORT, timeout=3)
+            if not s:
+                print _("Erro conectando a %s!" % z)
+                self.gui.set_offline(z, _("Unable to connect to %s!") % z)
+            # envia a mensagem
+            try:
+                s.send(struct.pack("<b", COMMAND_STOP_CAPTURE))
+            except:
+                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
+            # agora vamos receber o arquivo
+            try:
+                size = struct.unpack("<I",
+                        (s.recv(struct.calcsize("<I")))
+                        )[0]
+                print size
+                if size > 0:
+                    print "Recebendo arquivo de %d bytes de %s" % (size, z)
+                fd = open("results.%s.%s.pcap" % (self.curtimestamp, z), "wb")
+                while size > 0:
+                    buf = s.recv(size)
+                    fd.write(buf)
+                    size -= len(buf)
+                fd.close()
+            except:
+                print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
+                traceback.print_exc()
+                self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
+            # Agora vamos esperar a resposta..
+        print "Captura finalizada"
+        self.gui.capture_finished()
+
+    def run(self):
+        """Starts a background thread"""
+        while 1:
+            experiment = self.experiments.get()
+            if not experiment:
+                continue
+            # chegou ALGO
+            name, parameters = experiment
+            print "Running %s" % name
+            if name == "bandwidth":
+                self.bandwidth(parameters)
+            elif name == "start_capture":
+                machines, descr = parameters
+                self.start_capture(machines, descr)
+            elif name == "stop_capture":
+                self.stop_capture(parameters)
+            else:
+                print "Unknown experiment %s" % name
+# }}}
+
+# {{{ TrafdumpGui
+class TrafdumpGui:
     selected_machines = 0
     """Teacher GUI main class"""
     def __init__(self, guifile):
         """Initializes the interface"""
         # inter-class communication
-        self.queue = Queue.Queue()
+        self.new_clients_queue = Queue.Queue()
         # colors
         self.color_normal = gtk.gdk.color_parse("#99BFEA")
         self.color_active = gtk.gdk.color_parse("#FFBBFF")
@@ -84,6 +255,13 @@ class trafdump:
         # inicializa o timestamp
         self.curtimestamp = 0
 
+        # inicializa o servico
+        self.service = None
+
+    def set_service(self, service):
+        """Determines the active benchmarking service"""
+        self.service = service
+
     def question(self, title, input=None):
         """Asks a question :)"""
         # cria a janela do dialogo
@@ -123,8 +301,8 @@ class trafdump:
     def monitor(self):
         """Monitors new machines connections"""
         #self.StatusLabel.set_markup("<b>Link:</b> %s, <b>Signal:</b> %s, <b>Noise:</b> %s" % (link, level, noise))
-        while not self.queue.empty():
-            addr = self.queue.get()
+        while not self.new_clients_queue.empty():
+            addr = self.new_clients_queue.get()
             if addr not in self.machines:
                 # Maquina nova
                 gtk.gdk.threads_enter()
@@ -141,72 +319,52 @@ class trafdump:
 
         gobject.timeout_add(1000, self.monitor)
 
+    def set_offline(self, machine, message=None):
+        """Marks a machine as offline"""
+        if machine not in self.machines:
+            print "Error: machine %s not registered!" % machine
+            return
+        gtk.gdk.threads_enter()
+        self.machines[machine].button.set_image(self.machines[machine].button.img_off)
+        if message:
+            self.tooltip.set_tip(self.machines[machine], _("%s\%s!") % (time.asctime(), message))
+        gtk.gdk.threads_leave()
+
+    def finish_bandwidth(self):
+        """Bandwidth experiment finished"""
+        print "Bandwidth experiment finished!"""
+        gtk.gdk.threads_enter()
+        self.BandwidthButton.set_sensitive(True)
+        gtk.gdk.threads_leave()
+
+    def capture_started(self):
+        """Traffic experiment started"""
+        print "Capture started!"""
+        gtk.gdk.threads_enter()
+        self.StartCapture.set_sensitive(False)
+        self.StopCapture.set_sensitive(True)
+        gtk.gdk.threads_leave()
+
+    def capture_finished(self):
+        """Traffic experiment finished"""
+        print "Capture finished!"""
+        gtk.gdk.threads_enter()
+        self.StartCapture.set_sensitive(True)
+        self.StopCapture.set_sensitive(False)
+        gtk.gdk.threads_leave()
+
     def bandwidth(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
         self.BandwidthButton.set_sensitive(False)
 
-        timestamp_bandwidth = str(int(time.time()))
-        self.curtimestamp = str(int(time.time()))
-
-        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        fd.write(_("Bandwidth evaluation experiment.\n"))
-        fd.close()
-
-        print "Captura iniciada"
+        machines = []
         for z in self.machines:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
-                print "Enviando para %s" % z
-                # enviando mensagem para cliente para iniciar a captura
-                s = connect(z, LISTENPORT, timeout=5)
-                if not s:
-                    print _("Erro conectando a %s!" % z)
-                    self.machines[z].button.set_image(self.machines[z].button.img_off)
-                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
-                    return
-                # envia a mensagem
-                try:
-                    s.send(struct.pack("<b", COMMAND_BANDWIDTH))
-                    # envia o timestamp do experimento e a descricao
-                    t1 = time.time()
-                    tosend = BANDWIDTH_BUFSIZE
-                    # temporary packet
-                    packet = " " * 65536
-                    while tosend > 0:
-                        if tosend > 65536:
-                            sendl = 65536
-                        else:
-                            sendl = tosend
-                        count = s.send(packet[:sendl])
-                        tosend -= count
-                    t2 = time.time()
-                    time_up = t2 - t1
-                    bandwidth_up = float(BANDWIDTH_BUFSIZE / time_up)
-                    print "Upload bandwidth: %f (%f sec)" % (bandwidth_up, time_up)
-                    t3 = time.time()
-                    tosend = BANDWIDTH_BUFSIZE
-                    # temporary packet
-                    while tosend > 0:
-                        data = s.recv(65536)
-                        if not data:
-                            print "Error: no data received!"
-                            return
-                        tosend -= len(data)
-                    t4 = time.time()
-                    time_down = t4 - t3
-                    bandwidth_down = float(BANDWIDTH_BUFSIZE / time_down)
-                    print "Download bandwidth: %f (%f sec)" % (bandwidth_down, time_down)
-                    fd = open("results.%s.%s.band" % (timestamp_bandwidth, z), "w")
-                    fd.write("Buffer size: %d\nUpload: %f sec, %f bytes/sec\nDownload: %f sec, %f bytes/sec\n" % (BANDWIDTH_BUFSIZE, time_up, bandwidth_up, time_down, bandwidth_down))
-                    fd.close()
-                except:
-                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
-                    traceback.print_exc()
-                    self.machines[z].button.set_image(self.machines[z].button.img_off)
-                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
-                    return
-        self.BandwidthButton.set_sensitive(True)
+                machines.append(z)
+
+        self.service.experiments.put(("bandwidth", machines))
 
     def start_capture(self, widget):
         """Inicia a captura"""
@@ -214,82 +372,22 @@ class trafdump:
         descr = self.question(_("Describe the experiment"), True)
         if not descr:
             return
-        self.StartCapture.set_sensitive(False)
-        self.StopCapture.set_sensitive(True)
 
-        # atualiza o timestamp do experimento
-        self.curtimestamp = str(int(time.time()))
-
-        fd = open("results.%s.txt" % self.curtimestamp, "w")
-        fd.write("%s\n" % descr)
-        fd.close()
-
+        machines = []
         for z in self.machines:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
-                print "Enviando para %s" % z
-                # enviando mensagem para cliente para iniciar a captura
-                s = connect(z, LISTENPORT, timeout=5)
-                if not s:
-                    print _("Erro conectando a %s!" % z)
-                    self.machines[z].button.set_image(self.machines[z].button.img_off)
-                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
-                    return
-                # envia a mensagem
-                try:
-                    s.send(struct.pack("<b", COMMAND_START_CAPTURE))
-                    # envia o timestamp do experimento e a descricao
-                    print self.curtimestamp
-                    s.send(struct.pack("10s32s", self.curtimestamp, descr))
-                except:
-                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
-                    self.machines[z].button.set_image(self.machines[z].button.img_off)
-                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
-                    return
-        print "Captura iniciada"
+                machines.append(z)
+        self.service.experiments.put(("start_capture", (machines, descr)))
 
     def stop_capture(self, widget):
         """Termina a captura"""
-        self.StartCapture.set_sensitive(True)
-        self.StopCapture.set_sensitive(False)
+        machines = []
         for z in self.machines:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
-                print "Enviando para %s" % z
-                # enviando mensagem para cliente para iniciar a captura
-                s = connect(z, LISTENPORT, timeout=3)
-                if not s:
-                    print _("Erro conectando a %s!" % z)
-                    return
-                # envia a mensagem
-                try:
-                    s.send(struct.pack("<b", COMMAND_STOP_CAPTURE))
-                except:
-                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
-                    self.machines[z].button.set_image(self.machines[z].button.img_off)
-                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
-                    return
-                # agora vamos receber o arquivo
-                try:
-                    size = struct.unpack("<I",
-                            (s.recv(struct.calcsize("<I")))
-                            )[0]
-                    print size
-                    if size > 0:
-                        print "Recebendo arquivo de %d bytes de %s" % (size, z)
-                    fd = open("results.%s.%s.pcap" % (self.curtimestamp, z), "wb")
-                    while size > 0:
-                        buf = s.recv(size)
-                        fd.write(buf)
-                        size -= len(buf)
-                    fd.close()
-                except:
-                    print "Erro recebendo resultado de %s: %s" % (z, sys.exc_value)
-                    self.machines[z].button.set_image(self.machines[z].button.img_off)
-                    self.tooltip.set_tip(self.machines[z], _("%s\nUnable to connect to %s!") % (time.asctime(), z))
-                    traceback.print_exc()
-                    return
-                # Agora vamos esperar a resposta..
+                machines.append(z)
+        self.service.experiments.put(("stop_capture", machines))
         print "Captura finalizada"
 
     def select_all(self, widget):
@@ -375,7 +473,7 @@ class trafdump:
 
         # muda o texto
 
-    def mkbutton(self, img, img2, text, action, color_normal, color_active): # {{{ Creates a callable button
+    def mkbutton(self, img, img2, text, action, color_normal, color_active):
         """Creates a callable button"""
         box = gtk.HBox(homogeneous=False)
         # Imagem 1
@@ -418,17 +516,16 @@ class trafdump:
             button.connect('clicked', action, "")
         button.show_all()
         return button
-    # }}}
+# }}}
 
-# Main interface
-gui = trafdump("iface/trafdump.glade")
-
+# {{{ TrafBroadcast
 class TrafBroadcast(Thread):
     """Broadcast-related services"""
-    def __init__(self, port):
+    def __init__(self, port, gui):
         """Initializes listening thread"""
         Thread.__init__(self)
         self.port = port
+        self.gui = gui
 
     def run(self):
         """Starts listening to broadcast"""
@@ -438,7 +535,7 @@ class TrafBroadcast(Thread):
                 """Receives a broadcast message"""
                 client = self.client_address[0]
 #                print " >> Heartbeat from %s!" % client
-                gui.queue.put(client)
+                self.gui.new_clients_queue.put(client)
         self.socket_bcast = SocketServer.UDPServer(('', self.port), BcastHandler)
         while 1:
             try:
@@ -449,13 +546,21 @@ class TrafBroadcast(Thread):
             except:
                 print "Error handling broadcast socket!"
                 break
+# }}}
 
 if __name__ == "__main__":
     gtk.gdk.threads_init()
     print _("Starting broadcast..")
-    bcast = TrafBroadcast(LISTENPORT)
+    # Main interface
+    gui = TrafdumpGui("iface/trafdump.glade")
+    # Benchmarking service
+    service = TrafdumpRunner(gui)
+    service.start()
+    # Broadcasting service
+    bcast = TrafBroadcast(LISTENPORT, service)
     bcast.start()
-    print _("Starting GUI..")
+
+    print _("Starting main loop..")
     gtk.gdk.threads_enter()
     gtk.main()
     gtk.gdk.threads_leave()
