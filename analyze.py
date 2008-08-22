@@ -472,7 +472,7 @@ function toggle(whichLayer)
             <td>%(min_elapsed_time_file)0.2f seconds</td>
             </tr>
             <tr>
-            <td><b>Maximum ile transmition duration:</b></td>
+            <td><b>Maximum file transmition duration:</b></td>
             <td>%(min_elapsed_time_file)0.2f seconds</td>
             </tr>
             <tr>

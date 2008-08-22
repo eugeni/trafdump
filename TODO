@@ -1,6 +1,9 @@
 Create windows installer.
 Notify to open 10000 UDP/TCP port.
 
+Bugs:
+ - tempos minimos e maximos (?)
+
 Detailed error messages (i.e., timeout, etc).
 Processar os dados:
  - Determinar o nome do experimento a partir de results.ts.txt
