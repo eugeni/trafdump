@@ -76,7 +76,7 @@ class TrafdumpRunner(Thread):
 
             # envia a mensagem
             try:
-                s.send(struct.pack("<b", COMMAND_BANDWIDTH))
+                s.send(struct.pack("<b", COMMAND_BANDWIDTH_TCP))
                 # envia o timestamp do experimento e a descricao
                 t1 = time.time()
                 tosend = BANDWIDTH_BUFSIZE
@@ -114,8 +114,14 @@ class TrafdumpRunner(Thread):
                 traceback.print_exc()
                 # Marca a maquina como offline
                 self.gui.set_offline(z)
-        time.sleep(5)
+        for z in range(0, 100):
+            self.gui.show_progress("TCP bandwidth estimation: %d%% complete" % (z))
+            time.sleep(0.1)
         self.gui.finish_bandwidth()
+
+    def test_multicast(self, machines, traffic=BANDWIDTH_BUFSIZE):
+        """Performs a multicast bandwidth test"""
+        pass
 
     def start_capture(self, machines, descr):
         """Inicia a captura"""
@@ -238,6 +244,7 @@ class TrafdumpGui:
         self.StartCapture.connect('clicked', self.start_capture)
         self.StopCapture.connect('clicked', self.stop_capture)
         self.BandwidthButton.connect('clicked', self.bandwidth)
+        self.MulticastButton.connect('clicked', self.multicast)
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
@@ -273,6 +280,7 @@ class TrafdumpGui:
         dialog.vbox.set_border_width(8)
         if input:
             entry = gtk.Entry()
+            entry.set_text(input)
             dialog.vbox.add(entry)
         dialog.show_all()
         response = dialog.run()
@@ -285,6 +293,12 @@ class TrafdumpGui:
         else:
             dialog.destroy()
             return None
+
+    def show_progress(self, message):
+        """Shows a message :)"""
+        gtk.gdk.threads_enter()
+        self.StatusLabel.set_text(message)
+        gtk.gdk.threads_leave()
 
     def put_machine(self, machine):
         """Puts a client machine in an empty spot"""
@@ -353,6 +367,10 @@ class TrafdumpGui:
         self.StopCapture.set_sensitive(False)
         gtk.gdk.threads_leave()
 
+    def multicast(self, widget):
+        """Inicia o teste de multicast"""
+        num_msgs = self.question(_("How many messages to send?"), "1000")
+
     def bandwidth(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
@@ -369,7 +387,7 @@ class TrafdumpGui:
     def start_capture(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
-        descr = self.question(_("Describe the experiment"), True)
+        descr = self.question(_("Describe the experiment"), _("Sample traffic collection"))
         if not descr:
             return
 

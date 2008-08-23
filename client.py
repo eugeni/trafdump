@@ -186,10 +186,12 @@ class trafdump:
 
     def log(self, text):
         """Logs a string"""
+        gtk.gdk.threads_enter()
         buffer = self.textview1.get_buffer()
         iter = buffer.get_iter_at_offset(0)
         print text
         buffer.insert(iter, "%s: %s\n" % (time.asctime(), text))
+        gtk.gdk.threads_leave()
 
 class BcastSender(Thread):
     """Sends broadcast requests"""
@@ -277,7 +279,7 @@ class TrafClient(Thread):
                     except:
                         gui.log(_("Error: unable to open %s!" % gui.outfile))
                         self.request.send(struct.pack("<I", 0))
-                elif cmd == COMMAND_BANDWIDTH:
+                elif cmd == COMMAND_BANDWIDTH_TCP:
                     gui.log(_("Testing bandwidth"))
                     try:
                         # download
@@ -298,6 +300,29 @@ class TrafClient(Thread):
                             tosend -= count
                     except:
                         gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
+                elif cmd == COMMAND_BANDWIDTH_TCP:
+                    gui.log(_("Testing bandwidth"))
+                    try:
+                        # download
+                        toread = BANDWIDTH_BUFSIZE
+                        while toread > 0:
+                            data = self.request.recv(65536)
+                            if not data:
+                                gui.log(_("Error: no data received!"))
+                                return
+                            toread -= len(data)
+                        # upload
+                        print "Now sending data"
+                        tosend = BANDWIDTH_BUFSIZE
+                        # temporary packet
+                        packet = " " * 65536
+                        while tosend > 0:
+                            count = self.request.send(packet)
+                            tosend -= count
+                    except:
+                        gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
+                else:
+                    print "Unknown command received!"
 
         self.socket_client = ReusableSocketServer(('', self.port), MessageHandler)
         while 1:
