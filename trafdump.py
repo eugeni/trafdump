@@ -60,7 +60,7 @@ class TrafdumpRunner(Thread):
         timestamp_bandwidth = str(int(time.time()))
 
         fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        fd.write(_("Bandwidth evaluation experiment.\n"))
+        fd.write(_("TCP Bandwidth evaluation experiment.\nClients: %s") % ",".join(machines))
         fd.close()
 
         print "Captura iniciada"
@@ -103,6 +103,7 @@ class TrafdumpRunner(Thread):
                         return
                     tosend -= len(data)
                 t4 = time.time()
+                s.close()
                 time_down = t4 - t3
                 bandwidth_down = float(BANDWIDTH_BUFSIZE / time_down)
                 print "Download bandwidth: %f (%f sec)" % (bandwidth_down, time_down)
@@ -118,6 +119,79 @@ class TrafdumpRunner(Thread):
             self.gui.show_progress("TCP bandwidth estimation: %d%% complete" % (z))
             time.sleep(0.1)
         self.gui.finish_bandwidth()
+
+    def multicast(self, machines, num_msgs):
+        """Inicia a captura"""
+
+        timestamp_bandwidth = str(int(time.time()))
+
+        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
+        fd.write(_("Multicast Bandwidth evaluation experiment.\nClients: %s") % ",".join(machines))
+        fd.close()
+
+        print "Captura iniciada"
+        # Envia as mensagens
+        for z in machines:
+            print "Enviando para %s" % z
+            # enviando mensagem para cliente para iniciar a captura
+            s = connect(z, LISTENPORT, timeout=5)
+            if not s:
+                print _("Erro conectando a %s!" % z)
+                traceback.print_exc()
+                # Marca a maquina como offline
+                self.gui.set_offline(z)
+            # envia a mensagem
+            try:
+                s.send(struct.pack("<b", COMMAND_BANDWIDTH_MULTICAST_START))
+                s.send(struct.pack("<I", num_msgs))
+            except:
+                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                traceback.print_exc()
+                # Marca a maquina como offline
+                self.gui.set_offline(z)
+            s.close()
+        # Agora faz o experimento
+        self.gui.show_progress(_("Started multicasting experiment"))
+        time.sleep(1)
+        # TODO: fazer experimento wireless
+        for z in range(0, 100):
+            self.gui.show_progress("Multicast bandwidth estimation: %d%% complete" % (z))
+            time.sleep(0.1)
+        for z in machines:
+            print "Enviando para %s" % z
+            # enviando mensagem para cliente para iniciar a captura
+            s = connect(z, LISTENPORT, timeout=3)
+            if not s:
+                print _("Erro conectando a %s!" % z)
+                self.gui.set_offline(z, _("Unable to connect to %s!") % z)
+            # envia a mensagem
+            try:
+                s.send(struct.pack("<b", COMMAND_BANDWIDTH_MULTICAST_STOP))
+            except:
+                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
+            # agora vamos receber o arquivo
+            try:
+                size = struct.unpack("<I",
+                        (s.recv(struct.calcsize("<I")))
+                        )[0]
+                print size
+                if size > 0:
+                    print "Recebendo arquivo de %d bytes de %s" % (size, z)
+                fd = open("results.%s.%s.mcast" % (self.curtimestamp, z), "wb")
+                while size > 0:
+                    buf = s.recv(size)
+                    fd.write(buf)
+                    size -= len(buf)
+                fd.close()
+            except:
+                print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
+                traceback.print_exc()
+                self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
+            s.close()
+        self.gui.multicast_finished()
+        # Agora recupera os dados de todos
+        self.gui.show_progress(_("Finished multicasting experiment"))
 
     def test_multicast(self, machines, traffic=BANDWIDTH_BUFSIZE):
         """Performs a multicast bandwidth test"""
@@ -149,6 +223,7 @@ class TrafdumpRunner(Thread):
             except:
                 print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
                 self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
+            s.close()
         print "Captura iniciada"
         self.gui.capture_started()
 
@@ -185,6 +260,7 @@ class TrafdumpRunner(Thread):
                 print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
                 traceback.print_exc()
                 self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
+            s.close()
             # Agora vamos esperar a resposta..
         print "Captura finalizada"
         self.gui.capture_finished()
@@ -205,6 +281,9 @@ class TrafdumpRunner(Thread):
                 self.start_capture(machines, descr)
             elif name == "stop_capture":
                 self.stop_capture(parameters)
+            elif name == "multicast":
+                machines, num_msgs = parameters
+                self.multicast(machines, num_msgs)
             else:
                 print "Unknown experiment %s" % name
 # }}}
@@ -245,6 +324,7 @@ class TrafdumpGui:
         self.StopCapture.connect('clicked', self.stop_capture)
         self.BandwidthButton.connect('clicked', self.bandwidth)
         self.MulticastButton.connect('clicked', self.multicast)
+        self.BroadcastButton.connect('clicked', self.broadcast)
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
@@ -369,7 +449,26 @@ class TrafdumpGui:
 
     def multicast(self, widget):
         """Inicia o teste de multicast"""
-        num_msgs = self.question(_("How many messages to send?"), "1000")
+        num_msgs = self.question(_("How many multicast messages to send?"), "1000")
+        if not num_msgs:
+            return
+        self.MulticastButton.set_sensitive(False)
+
+        machines = []
+        for z in self.machines:
+            img = self.machines[z].button.get_image()
+            if img == self.machines[z].button.img_on:
+                machines.append(z)
+
+        self.service.experiments.put(("multicast", (machines, num_msgs)))
+
+    def multicast_finished(self):
+        """Multicast experiment has finished"""
+        self.MulticastButton.set_sensitive(True)
+
+    def broadcast(self, widget):
+        """Inicia o teste de multicast"""
+        num_msgs = self.question(_("How many broadcast messages to send?"), "1000")
 
     def bandwidth(self, widget):
         """Inicia a captura"""
