@@ -143,7 +143,6 @@ class TrafdumpRunner(Thread):
             # envia a mensagem
             try:
                 s.send(struct.pack("<b", COMMAND_BANDWIDTH_MULTICAST_START))
-                s.send(struct.pack("<I", num_msgs))
             except:
                 print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
                 traceback.print_exc()
@@ -153,7 +152,10 @@ class TrafdumpRunner(Thread):
         # Agora faz o experimento
         self.gui.show_progress(_("Started multicasting experiment"))
         time.sleep(1)
+
         # TODO: fazer experimento wireless
+
+        # Desconecta os clientes
         for z in range(0, 100):
             self.gui.show_progress("Multicast bandwidth estimation: %d%% complete" % (z))
             time.sleep(0.1)
@@ -188,14 +190,11 @@ class TrafdumpRunner(Thread):
                 print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
                 traceback.print_exc()
                 self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
-            s.close()
+            finally:
+                s.close()
         self.gui.multicast_finished()
         # Agora recupera os dados de todos
         self.gui.show_progress(_("Finished multicasting experiment"))
-
-    def test_multicast(self, machines, traffic=BANDWIDTH_BUFSIZE):
-        """Performs a multicast bandwidth test"""
-        pass
 
     def start_capture(self, machines, descr):
         """Inicia a captura"""
@@ -652,7 +651,8 @@ class TrafBroadcast(Thread):
                 """Receives a broadcast message"""
                 client = self.client_address[0]
 #                print " >> Heartbeat from %s!" % client
-                self.gui.new_clients_queue.put(client)
+                global gui
+                gui.new_clients_queue.put(client)
         self.socket_bcast = SocketServer.UDPServer(('', self.port), BcastHandler)
         while 1:
             try:

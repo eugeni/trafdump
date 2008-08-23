@@ -12,6 +12,8 @@ import sys
 import traceback
 import time
 
+import Queue
+
 import socket
 import SocketServer
 import struct
@@ -92,6 +94,7 @@ class trafdump:
         # Inicializa as threads
         self.bcast = BcastSender(LISTENPORT, self)
         self.client = TrafClient(LISTENPORT, self)
+        self.mcast = McastListener()
 
     def network_selected(self, combobox):
         """A network interface was selected"""
@@ -186,12 +189,12 @@ class trafdump:
 
     def log(self, text):
         """Logs a string"""
-        gtk.gdk.threads_enter()
+        #gtk.gdk.threads_enter()
         buffer = self.textview1.get_buffer()
         iter = buffer.get_iter_at_offset(0)
         print text
         buffer.insert(iter, "%s: %s\n" % (time.asctime(), text))
-        gtk.gdk.threads_leave()
+        #gtk.gdk.threads_leave()
 
 class BcastSender(Thread):
     """Sends broadcast requests"""
@@ -218,6 +221,37 @@ class BcastSender(Thread):
                 gui.log("Error sending broadcast message: %s" % sys.exc_value)
                 traceback.print_exc()
                 time.sleep(1)
+
+class McastListener(Thread):
+    """Multicast listening thread"""
+    def __init__(self):
+        Thread.__init__(self)
+        self.actions = Queue.Queue()
+
+    def run(self):
+        """Keep listening for multicasting messages"""
+        # Configura o socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('', MCASTPORT))
+        # configura para multicast
+        mreq = struct.pack("4sl", socket.inet_aton(MCASTADDR), socket.INADDR_ANY)
+        s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        # configura timeou para 1 segundo
+        s.settimeout(1)
+        while 1:
+            if not self.actions.empty():
+                print "Asked to leave"
+                s.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
+                s.close()
+                return
+            try:
+                data = s.recv(DATAGRAM_SIZE)
+            except socket.timeout:
+                print "Timeout!"
+            except:
+                print "Exception!"
+                traceback.print_exc()
 
 class TrafClient(Thread):
     """Handles server messages"""
@@ -300,25 +334,19 @@ class TrafClient(Thread):
                             tosend -= count
                     except:
                         gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
-                elif cmd == COMMAND_BANDWIDTH_TCP:
-                    gui.log(_("Testing bandwidth"))
+                elif cmd == COMMAND_BANDWIDTH_MULTICAST_START:
+                    gui.log(_("Testing multicast bandwidth"))
+                    gui.mcast_listener = McastListener()
+                    gui.mcast_listener.start()
                     try:
-                        # download
-                        toread = BANDWIDTH_BUFSIZE
-                        while toread > 0:
-                            data = self.request.recv(65536)
-                            if not data:
-                                gui.log(_("Error: no data received!"))
-                                return
-                            toread -= len(data)
-                        # upload
-                        print "Now sending data"
-                        tosend = BANDWIDTH_BUFSIZE
-                        # temporary packet
-                        packet = " " * 65536
-                        while tosend > 0:
-                            count = self.request.send(packet)
-                            tosend -= count
+                        pass
+                    except:
+                        gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
+                elif cmd == COMMAND_BANDWIDTH_MULTICAST_STOP:
+                    gui.log(_("Finishing multicast bandwidth"))
+                    gui.mcast_listener.actions.put(1)
+                    try:
+                        pass
                     except:
                         gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
                 else:
@@ -352,6 +380,7 @@ if __name__ == "__main__":
     # Atualizando a lista de interfaces
     ifaces = list_ifaces()
     gtk.gdk.threads_init()
+
     print _("Starting GUI..")
     gui = trafdump("iface/client.glade")
     try:
