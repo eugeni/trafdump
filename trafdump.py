@@ -127,7 +127,7 @@ class TrafdumpRunner(Thread):
         timestamp_bandwidth = str(int(time.time()))
 
         fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        fd.write(_("Multicast Bandwidth evaluation experiment.\nClients: %s") % ",".join(machines))
+        fd.write(_("Multicast Bandwidth evaluation.\nClients: %s") % ",".join(machines))
         fd.close()
 
         print "Captura iniciada"
@@ -162,6 +162,7 @@ class TrafdumpRunner(Thread):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
             s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             for z in range(num_msgs):
                 packet = struct.pack("<I", z)
                 s.sendto(packet + data, (MCASTADDR, MCASTPORT))
@@ -211,6 +212,98 @@ class TrafdumpRunner(Thread):
         self.gui.multicast_finished()
         # Agora recupera os dados de todos
         self.gui.show_progress(_("Finished multicasting experiment"))
+
+    def broadcast(self, machines, num_msgs):
+        """Inicia a captura de dados broadcast"""
+
+        timestamp_bandwidth = str(int(time.time()))
+
+        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
+        fd.write(_("Broadcast Bandwidth evaluation.\nClients: %s") % ",".join(machines))
+        fd.close()
+
+        print "Captura iniciada"
+        # Envia as mensagens
+        for z in machines:
+            self.gui.show_progress(_("Sending Broadcast Bandwidth test request to %s") % z)
+            print "Enviando para %s" % z
+            # enviando mensagem para cliente para iniciar a captura
+            s = connect(z, LISTENPORT, timeout=5)
+            if not s:
+                print _("Erro conectando a %s!" % z)
+                traceback.print_exc()
+                # Marca a maquina como offline
+                self.gui.set_offline(z)
+            # envia a mensagem
+            try:
+                s.send(struct.pack("<b", COMMAND_BANDWIDTH_BROADCAST_START))
+            except:
+                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                traceback.print_exc()
+                # Marca a maquina como offline
+                self.gui.set_offline(z)
+            s.close()
+        # Agora faz o experimento
+        self.gui.show_progress(_("Started broadcasting experiment"))
+
+        # aguarda um tempo para os clientes se estabilizarem
+        time.sleep(2)
+
+        # TODO: fazer experimento wireless
+        data = " " * DATAGRAM_SIZE
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            for z in range(num_msgs):
+                packet = struct.pack("<I", z)
+                s.sendto(packet + data, ("255.255.255.255", BCASTPORT))
+                if (z % 100) == 0:
+                    self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
+        except:
+            traceback.print_exc()
+            self.gui.show_progress(_("Error sending broadcast message: %s") % sys.exc_value)
+
+
+        self.gui.show_progress(_("Sending Broadcast Bandwidth finish request to %s") % z)
+        # Desconecta os clientes
+        for z in machines:
+            print "Enviando para %s" % z
+            # enviando mensagem para cliente para iniciar a captura
+            s = connect(z, LISTENPORT, timeout=3)
+            if not s:
+                print _("Erro conectando a %s!" % z)
+                self.gui.set_offline(z, _("Unable to connect to %s!") % z)
+            # envia a mensagem
+            try:
+                s.send(struct.pack("<b", COMMAND_BANDWIDTH_BROADCAST_STOP))
+            except:
+                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
+            # agora vamos receber o arquivo
+            try:
+                size = struct.unpack("<I",
+                        (s.recv(struct.calcsize("<I")))
+                        )[0]
+                print size
+                if size > 0:
+                    print "Recebendo arquivo de %d bytes de %s" % (size, z)
+                fd = open("results.%s.%s.bcast" % (timestamp_bandwidth, z), "wb")
+                while size > 0:
+                    buf = s.recv(size)
+                    fd.write(buf)
+                    size -= len(buf)
+                print >>fd, "\n"
+                fd.close()
+            except:
+                print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
+                traceback.print_exc()
+                self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
+            finally:
+                s.close()
+        self.gui.broadcast_finished()
+        # Agora recupera os dados de todos
+        self.gui.show_progress(_("Finished broadcasting experiment"))
 
     def start_capture(self, machines, descr):
         """Inicia a captura"""
@@ -299,6 +392,9 @@ class TrafdumpRunner(Thread):
             elif name == "multicast":
                 machines, num_msgs = parameters
                 self.multicast(machines, num_msgs)
+            elif name == "broadcast":
+                machines, num_msgs = parameters
+                self.broadcast(machines, num_msgs)
             else:
                 print "Unknown experiment %s" % name
 # }}}
@@ -486,8 +582,27 @@ class TrafdumpGui:
         self.MulticastButton.set_sensitive(True)
 
     def broadcast(self, widget):
-        """Inicia o teste de multicast"""
+        """Inicia o teste de broadcast"""
         num_msgs = self.question(_("How many broadcast messages to send?"), "1000")
+        if not num_msgs:
+            return
+        try:
+            num_msgs = int(num_msgs)
+        except:
+            return
+        self.BroadcastButton.set_sensitive(False)
+
+        machines = []
+        for z in self.machines:
+            img = self.machines[z].button.get_image()
+            if img == self.machines[z].button.img_on:
+                machines.append(z)
+
+        self.service.experiments.put(("broadcast", (machines, num_msgs)))
+
+    def broadcast_finished(self):
+        """Multicast experiment has finished"""
+        self.BroadcastButton.set_sensitive(True)
 
     def bandwidth(self, widget):
         """Inicia a captura"""

@@ -95,7 +95,6 @@ class trafdump:
         # Inicializa as threads
         self.bcast = BcastSender(LISTENPORT, self)
         self.client = TrafClient(LISTENPORT, self)
-        self.mcast = McastListener()
 
     def network_selected(self, combobox):
         """A network interface was selected"""
@@ -143,51 +142,6 @@ class trafdump:
         gtk.main_quit()
         sys.exit(0)
 
-    def mkbutton(self, img, img2, text, action, color_normal, color_active): # {{{ Creates a callable button
-        """Creates a callable button"""
-        box = gtk.HBox(homogeneous=False)
-        # Imagem 1
-        imgpath = "%s/%s" % (self.appdir, img)
-        # Verifica se arquivo existe
-        try:
-            fd = open(imgpath)
-            fd.close()
-        except:
-            imgpath=None
-        if imgpath:
-            img = gtk.Image()
-            img.set_from_file(imgpath)
-            box.pack_start(img, expand=False)
-
-        # Verifica se arquivo existe
-        try:
-            fd = open(imgpath)
-            fd.close()
-        except:
-            imgpath=None
-        if imgpath:
-            img2 = gtk.Image()
-            img2.set_from_file(imgpath)
-
-        # Texto
-        label = gtk.Label(text)
-        label.set_use_markup(True)
-        label.set_markup("<b>%s</b>" % text)
-        box.pack_start(label, expand=False)
-
-        button = gtk.Button()
-        button.modify_bg(gtk.STATE_NORMAL, color_normal)
-        button.modify_bg(gtk.STATE_PRELIGHT, color_active)
-
-        button.add(box)
-
-        # callback
-        if action:
-            button.connect('clicked', action, "")
-        button.show_all()
-        return button
-    # }}}
-
     def log(self, text):
         """Logs a string"""
         #gtk.gdk.threads_enter()
@@ -197,6 +151,7 @@ class trafdump:
         buffer.insert(iter, "%s: %s\n" % (time.asctime(), text))
         #gtk.gdk.threads_leave()
 
+# {{{ BcastSender
 class BcastSender(Thread):
     """Sends broadcast requests"""
     def __init__(self, port, gui):
@@ -222,7 +177,9 @@ class BcastSender(Thread):
                 gui.log("Error sending broadcast message: %s" % sys.exc_value)
                 traceback.print_exc()
                 time.sleep(1)
+# }}}
 
+# {{{ McastListener
 class McastListener(Thread):
     """Multicast listening thread"""
     def __init__(self):
@@ -251,10 +208,14 @@ class McastListener(Thread):
         # configura para multicast
         mreq = struct.pack("4sl", socket.inet_aton(MCASTADDR), socket.INADDR_ANY)
         s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        # configura timeou para 1 segundo
+        # configura timeout para 1 segundo
         s.settimeout(1)
+        # configura o mecanismo de captura de tempo
+        if get_os() == "Windows":
+            timefunc = time.clock
+        else:
+            timefunc = time.time
         last_ts = None
-        last_clock = None
         while 1:
             if not self.actions.empty():
                 print "Finishing multicast capture"
@@ -265,19 +226,15 @@ class McastListener(Thread):
                 data = s.recv(DATAGRAM_SIZE)
                 count = struct.unpack("<I", data[:struct.calcsize("<I")])[0]
                 self.lock.acquire()
-                curtime = time.time()
+                curtime = timefunc()
                 curclock = time.clock()
                 if not last_ts:
                     last_ts = curtime
-                    last_clock = curclock
                     timediff = 0
-                    clockdiff = 0
                 else:
                     timediff = curtime - last_ts
                     last_ts = curtime
-                    clockdiff = curclock - last_clock
-                    last_clock = curclock
-                self.messages.append("%d %f %f %f %f" % (count, timediff, curtime, clockdiff, last_clock))
+                self.messages.append("%d %f %f" % (count, timediff, curtime))
                 self.lock.release()
             except socket.timeout:
                 #print "Timeout!"
@@ -285,6 +242,68 @@ class McastListener(Thread):
             except:
                 print "Exception!"
                 traceback.print_exc()
+# }}}
+
+# {{{ BcastListener
+class BcastListener(Thread):
+    """Broadcast listening thread"""
+    def __init__(self):
+        Thread.__init__(self)
+        self.actions = Queue.Queue()
+        self.messages = []
+        self.lock = thread.allocate_lock()
+
+    def get_log(self):
+        """Returns the execution log"""
+        self.lock.acquire()
+        msgs = "\n".join(self.messages)
+        return "# msgs: %d msg_size: %d\n%s" % (len(self.messages), DATAGRAM_SIZE, msgs)
+        self.lock.release()
+
+    def stop(self):
+        """Stops the execution"""
+        self.actions.put(1)
+
+    def run(self):
+        """Keep listening for broadcasting messages"""
+        # Configura o socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('', BCASTPORT))
+        # configura timeout para 1 segundo
+        s.settimeout(1)
+        # configura o mecanismo de captura de tempo
+        if get_os() == "Windows":
+            timefunc = time.clock
+        else:
+            timefunc = time.time
+        last_ts = None
+        while 1:
+            if not self.actions.empty():
+                print "Finishing broadcast capture"
+                s.close()
+                return
+            try:
+                data = s.recv(DATAGRAM_SIZE)
+                count = struct.unpack("<I", data[:struct.calcsize("<I")])[0]
+                self.lock.acquire()
+                curtime = timefunc()
+                curclock = time.clock()
+                if not last_ts:
+                    last_ts = curtime
+                    timediff = 0
+                else:
+                    timediff = curtime - last_ts
+                    last_ts = curtime
+                self.messages.append("%d %f %f" % (count, timediff, curtime))
+                self.lock.release()
+            except socket.timeout:
+                #print "Timeout!"
+                pass
+            except:
+                print "Exception!"
+                traceback.print_exc()
+# }}}
 
 class TrafClient(Thread):
     """Handles server messages"""
@@ -379,6 +398,25 @@ class TrafClient(Thread):
                     gui.log(_("Finishing multicast bandwidth"))
                     gui.mcast_listener.stop()
                     log = gui.mcast_listener.get_log()
+                    logsize = struct.pack("<I", len(log))
+                    self.request.send(logsize)
+                    self.request.send(log)
+                    try:
+                        pass
+                    except:
+                        gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
+                elif cmd == COMMAND_BANDWIDTH_BROADCAST_START:
+                    gui.log(_("Testing broadcast bandwidth"))
+                    gui.bcast_listener = BcastListener()
+                    gui.bcast_listener.start()
+                    try:
+                        pass
+                    except:
+                        gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
+                elif cmd == COMMAND_BANDWIDTH_BROADCAST_STOP:
+                    gui.log(_("Finishing broadcast bandwidth"))
+                    gui.bcast_listener.stop()
+                    log = gui.bcast_listener.get_log()
                     logsize = struct.pack("<I", len(log))
                     self.request.send(logsize)
                     self.request.send(log)
