@@ -235,7 +235,7 @@ class McastListener(Thread):
         """Returns the execution log"""
         self.lock.acquire()
         msgs = "\n".join(self.messages)
-        return "# msgs: %d\n%s" % (len(self.messages), msgs)
+        return "# msgs: %d msg_size: %d\n%s" % (len(self.messages), DATAGRAM_SIZE, msgs)
         self.lock.release()
 
     def stop(self):
@@ -254,6 +254,7 @@ class McastListener(Thread):
         # configura timeou para 1 segundo
         s.settimeout(1)
         last_ts = None
+        last_clock = None
         while 1:
             if not self.actions.empty():
                 print "Finishing multicast capture"
@@ -265,13 +266,18 @@ class McastListener(Thread):
                 count = struct.unpack("<I", data[:struct.calcsize("<I")])[0]
                 self.lock.acquire()
                 curtime = time.time()
+                curclock = time.clock()
                 if not last_ts:
-                    last_ts = time.time()
+                    last_ts = curtime
+                    last_clock = curclock
                     timediff = 0
+                    clockdiff = 0
                 else:
                     timediff = curtime - last_ts
                     last_ts = curtime
-                self.messages.append("%d %f %f" % (count, timediff, curtime))
+                    clockdiff = curclock - last_clock
+                    last_clock = curclock
+                self.messages.append("%d %f %f %f %f" % (count, timediff, curtime, clockdiff, last_clock))
                 self.lock.release()
             except socket.timeout:
                 #print "Timeout!"
