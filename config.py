@@ -22,7 +22,7 @@ COMMAND_BANDWIDTH_MULTICAST_START=6
 COMMAND_BANDWIDTH_MULTICAST_STOP=7
 
 BANDWIDTH_BUFSIZE = 10 * 1000 * 1000
-DATAGRAM_SIZE=1450
+DATAGRAM_SIZE=1440
 
 commands_linux = {
         "capture": "tshark -q -i %(iface)s -p -w %(output)s &",

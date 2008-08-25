@@ -66,6 +66,7 @@ class TrafdumpRunner(Thread):
         print "Captura iniciada"
         for z in machines:
             print "Enviando para %s" % z
+            self.gui.show_progress(_("TCP Bandwidth test for %s") % z)
             # enviando mensagem para cliente para iniciar a captura
             s = connect(z, LISTENPORT, timeout=5)
             if not s:
@@ -78,6 +79,7 @@ class TrafdumpRunner(Thread):
             try:
                 s.send(struct.pack("<b", COMMAND_BANDWIDTH_TCP))
                 # envia o timestamp do experimento e a descricao
+                self.gui.show_progress(_("TCP Bandwidth test for %s: upload") % z)
                 t1 = time.time()
                 tosend = BANDWIDTH_BUFSIZE
                 # temporary packet
@@ -93,6 +95,7 @@ class TrafdumpRunner(Thread):
                 time_up = t2 - t1
                 bandwidth_up = float(BANDWIDTH_BUFSIZE / time_up)
                 print "Upload bandwidth: %f (%f sec)" % (bandwidth_up, time_up)
+                self.gui.show_progress(_("TCP Bandwidth test for %s: download") % z)
                 t3 = time.time()
                 tosend = BANDWIDTH_BUFSIZE
                 # temporary packet
@@ -115,9 +118,7 @@ class TrafdumpRunner(Thread):
                 traceback.print_exc()
                 # Marca a maquina como offline
                 self.gui.set_offline(z)
-        for z in range(0, 100):
-            self.gui.show_progress("TCP bandwidth estimation: %d%% complete" % (z))
-            time.sleep(0.1)
+        self.gui.show_progress(_("TCP Bandwidth test for %s finished") % z)
         self.gui.finish_bandwidth()
 
     def multicast(self, machines, num_msgs):
@@ -132,6 +133,7 @@ class TrafdumpRunner(Thread):
         print "Captura iniciada"
         # Envia as mensagens
         for z in machines:
+            self.gui.show_progress(_("Sending Multicast Bandwidth test request to %s") % z)
             print "Enviando para %s" % z
             # enviando mensagem para cliente para iniciar a captura
             s = connect(z, LISTENPORT, timeout=5)
@@ -151,14 +153,27 @@ class TrafdumpRunner(Thread):
             s.close()
         # Agora faz o experimento
         self.gui.show_progress(_("Started multicasting experiment"))
-        time.sleep(1)
+
+        # aguarda um tempo para os clientes se estabilizarem
+        time.sleep(2)
 
         # TODO: fazer experimento wireless
+        data = " " * DATAGRAM_SIZE
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+            for z in range(num_msgs):
+                packet = struct.pack("<I", z)
+                s.sendto(packet + data, (MCASTADDR, MCASTPORT))
+                if (z % 100) == 0:
+                    self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
+        except:
+            traceback.print_exc()
+            self.gui.show_progress(_("Error sending multicast message: %s") % sys.exc_value)
 
+
+        self.gui.show_progress(_("Sending Multicast Bandwidth finish request to %s") % z)
         # Desconecta os clientes
-        for z in range(0, 100):
-            self.gui.show_progress("Multicast bandwidth estimation: %d%% complete" % (z))
-            time.sleep(0.1)
         for z in machines:
             print "Enviando para %s" % z
             # enviando mensagem para cliente para iniciar a captura
@@ -180,11 +195,12 @@ class TrafdumpRunner(Thread):
                 print size
                 if size > 0:
                     print "Recebendo arquivo de %d bytes de %s" % (size, z)
-                fd = open("results.%s.%s.mcast" % (self.curtimestamp, z), "wb")
+                fd = open("results.%s.%s.mcast" % (timestamp_bandwidth, z), "wb")
                 while size > 0:
                     buf = s.recv(size)
                     fd.write(buf)
                     size -= len(buf)
+                print >>fd, "\n"
                 fd.close()
             except:
                 print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
@@ -451,6 +467,10 @@ class TrafdumpGui:
         num_msgs = self.question(_("How many multicast messages to send?"), "1000")
         if not num_msgs:
             return
+        try:
+            num_msgs = int(num_msgs)
+        except:
+            return
         self.MulticastButton.set_sensitive(False)
 
         machines = []
@@ -666,6 +686,8 @@ class TrafBroadcast(Thread):
 # }}}
 
 if __name__ == "__main__":
+    # configura o timeout padrao para sockets
+    socket.setdefaulttimeout(5)
     gtk.gdk.threads_init()
     print _("Starting broadcast..")
     # Main interface

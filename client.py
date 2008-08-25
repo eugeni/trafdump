@@ -26,6 +26,7 @@ import pygtk
 import gobject
 
 from threading import Thread
+import thread
 import socket
 import traceback
 import time
@@ -227,6 +228,19 @@ class McastListener(Thread):
     def __init__(self):
         Thread.__init__(self)
         self.actions = Queue.Queue()
+        self.messages = []
+        self.lock = thread.allocate_lock()
+
+    def get_log(self):
+        """Returns the execution log"""
+        self.lock.acquire()
+        msgs = "\n".join(self.messages)
+        return "# msgs: %d\n%s" % (len(self.messages), msgs)
+        self.lock.release()
+
+    def stop(self):
+        """Stops the execution"""
+        self.actions.put(1)
 
     def run(self):
         """Keep listening for multicasting messages"""
@@ -239,16 +253,29 @@ class McastListener(Thread):
         s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         # configura timeou para 1 segundo
         s.settimeout(1)
+        last_ts = None
         while 1:
             if not self.actions.empty():
-                print "Asked to leave"
+                print "Finishing multicast capture"
                 s.setsockopt(socket.IPPROTO_IP, socket.IP_DROP_MEMBERSHIP, mreq)
                 s.close()
                 return
             try:
                 data = s.recv(DATAGRAM_SIZE)
+                count = struct.unpack("<I", data[:struct.calcsize("<I")])[0]
+                self.lock.acquire()
+                curtime = time.time()
+                if not last_ts:
+                    last_ts = time.time()
+                    timediff = 0
+                else:
+                    timediff = curtime - last_ts
+                    last_ts = curtime
+                self.messages.append("%d %f %f" % (count, timediff, curtime))
+                self.lock.release()
             except socket.timeout:
-                print "Timeout!"
+                #print "Timeout!"
+                pass
             except:
                 print "Exception!"
                 traceback.print_exc()
@@ -344,7 +371,11 @@ class TrafClient(Thread):
                         gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)
                 elif cmd == COMMAND_BANDWIDTH_MULTICAST_STOP:
                     gui.log(_("Finishing multicast bandwidth"))
-                    gui.mcast_listener.actions.put(1)
+                    gui.mcast_listener.stop()
+                    log = gui.mcast_listener.get_log()
+                    logsize = struct.pack("<I", len(log))
+                    self.request.send(logsize)
+                    self.request.send(log)
                     try:
                         pass
                     except:
@@ -377,6 +408,8 @@ if __name__ == "__main__":
         os.putenv("path", path)
         commands = commands_windows
 
+    # configura o timeout padrao para sockets
+    socket.setdefaulttimeout(5)
     # Atualizando a lista de interfaces
     ifaces = list_ifaces()
     gtk.gdk.threads_init()
