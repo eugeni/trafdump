@@ -227,14 +227,14 @@ class McastListener(Thread):
                 count = struct.unpack("<I", data[:struct.calcsize("<I")])[0]
                 self.lock.acquire()
                 curtime = timefunc()
-                curclock = time.clock()
+                walltime = time.time()
                 if not last_ts:
                     last_ts = curtime
                     timediff = 0
                 else:
                     timediff = curtime - last_ts
                     last_ts = curtime
-                self.messages.append("%d %f %f" % (count, timediff, curtime))
+                self.messages.append("%d %f %f %f" % (count, timediff, curtime, walltime))
                 self.lock.release()
             except socket.timeout:
                 #print "Timeout!"
@@ -288,14 +288,14 @@ class BcastListener(Thread):
                 count = struct.unpack("<I", data[:struct.calcsize("<I")])[0]
                 self.lock.acquire()
                 curtime = timefunc()
-                curclock = time.clock()
+                walltime = time.time()
                 if not last_ts:
                     last_ts = curtime
                     timediff = 0
                 else:
                     timediff = curtime - last_ts
                     last_ts = curtime
-                self.messages.append("%d %f %f" % (count, timediff, curtime))
+                self.messages.append("%d %f %f %f" % (count, timediff, curtime, walltime))
                 self.lock.release()
             except socket.timeout:
                 #print "Timeout!"
