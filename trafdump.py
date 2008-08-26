@@ -121,7 +121,7 @@ class TrafdumpRunner(Thread):
         self.gui.show_progress(_("TCP Bandwidth test for %s finished") % z)
         self.gui.finish_bandwidth()
 
-    def multicast(self, machines, num_msgs):
+    def multicast(self, machines, num_msgs, bandwidth):
         """Inicia a captura"""
 
         timestamp_bandwidth = str(int(time.time()))
@@ -157,7 +157,16 @@ class TrafdumpRunner(Thread):
         # aguarda um tempo para os clientes se estabilizarem
         time.sleep(2)
 
-        # TODO: fazer experimento wireless
+        # TODO: calcular delays de acordo com o tempo de envio de pacote
+        if bandwidth > 0:
+            delay = 1 / (
+                            (
+                                (bandwidth * 1024) / 8.0
+                            ) / DATAGRAM_SIZE
+                        )
+        else:
+            delay = 0
+        print "Delay between messages: %f" % delay
         data = " " * DATAGRAM_SIZE
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
@@ -166,6 +175,8 @@ class TrafdumpRunner(Thread):
             for z in range(num_msgs):
                 packet = struct.pack("<I", z)
                 s.sendto(packet + data, (MCASTADDR, MCASTPORT))
+                if delay > 0:
+                    time.sleep(delay)
                 if (z % 100) == 0:
                     self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
         except:
@@ -213,7 +224,7 @@ class TrafdumpRunner(Thread):
         # Agora recupera os dados de todos
         self.gui.show_progress(_("Finished multicasting experiment"))
 
-    def broadcast(self, machines, num_msgs):
+    def broadcast(self, machines, num_msgs, bandwidth):
         """Inicia a captura de dados broadcast"""
 
         timestamp_bandwidth = str(int(time.time()))
@@ -390,11 +401,11 @@ class TrafdumpRunner(Thread):
             elif name == "stop_capture":
                 self.stop_capture(parameters)
             elif name == "multicast":
-                machines, num_msgs = parameters
-                self.multicast(machines, num_msgs)
+                machines, num_msgs, bandwidth = parameters
+                self.multicast(machines, num_msgs, bandwidth)
             elif name == "broadcast":
-                machines, num_msgs = parameters
-                self.broadcast(machines, num_msgs)
+                machines, num_msgs, bandwidth = parameters
+                self.broadcast(machines, num_msgs, bandwidth)
             else:
                 print "Unknown experiment %s" % name
 # }}}
@@ -567,6 +578,15 @@ class TrafdumpGui:
             num_msgs = int(num_msgs)
         except:
             return
+
+        bandwidth = self.question(_("Maximum bandwidth in Kbps (0 for no limit)?"), "0")
+        if not bandwidth:
+            return
+        try:
+            bandwidth = int(bandwidth)
+        except:
+            return
+
         self.MulticastButton.set_sensitive(False)
 
         machines = []
@@ -575,7 +595,7 @@ class TrafdumpGui:
             if img == self.machines[z].button.img_on:
                 machines.append(z)
 
-        self.service.experiments.put(("multicast", (machines, num_msgs)))
+        self.service.experiments.put(("multicast", (machines, num_msgs, bandwidth)))
 
     def multicast_finished(self):
         """Multicast experiment has finished"""
@@ -590,6 +610,14 @@ class TrafdumpGui:
             num_msgs = int(num_msgs)
         except:
             return
+
+        bandwidth = self.question(_("Maximum bandwidth in Kbps (0 for no limit)?"), "0")
+        if not bandwidth:
+            return
+        try:
+            bandwidth = int(bandwidth)
+        except:
+            return
         self.BroadcastButton.set_sensitive(False)
 
         machines = []
@@ -598,7 +626,7 @@ class TrafdumpGui:
             if img == self.machines[z].button.img_on:
                 machines.append(z)
 
-        self.service.experiments.put(("broadcast", (machines, num_msgs)))
+        self.service.experiments.put(("broadcast", (machines, num_msgs, bandwidth)))
 
     def broadcast_finished(self):
         """Multicast experiment has finished"""
