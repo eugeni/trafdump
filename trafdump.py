@@ -260,7 +260,16 @@ class TrafdumpRunner(Thread):
         # aguarda um tempo para os clientes se estabilizarem
         time.sleep(2)
 
-        # TODO: fazer experimento wireless
+        # TODO: calcular delays de acordo com o tempo de envio de pacote
+        if bandwidth > 0:
+            delay = 1 / (
+                            (
+                                (bandwidth * 1024) / 8.0
+                            ) / DATAGRAM_SIZE
+                        )
+        else:
+            delay = 0
+        print "Delay between messages: %f" % delay
         data = " " * DATAGRAM_SIZE
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
@@ -269,6 +278,8 @@ class TrafdumpRunner(Thread):
             for z in range(num_msgs):
                 packet = struct.pack("<I", z)
                 s.sendto(packet + data, ("255.255.255.255", BCASTPORT))
+                if delay > 0:
+                    time.sleep(delay)
                 if (z % 100) == 0:
                     self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
         except:
