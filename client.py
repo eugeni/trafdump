@@ -95,20 +95,19 @@ class trafdump:
         # Inicializa as threads
         self.bcast = BcastSender(LISTENPORT, self)
         self.client = TrafClient(LISTENPORT, self)
+        self.log( _("Starting broadcasting service.."))
+        self.bcast.start()
+        self.log( _("Starting listening service.."))
+        self.client.start()
 
     def network_selected(self, combobox):
         """A network interface was selected"""
-        combobox.set_sensitive(False)
         model = combobox.get_model()
         index = combobox.get_active()
         global iface_selected
         if index > 0:
             iface_selected = model[index][0]
             gui.log( _("Capturing on %s") % iface_selected)
-            gui.log( _("Starting broadcasting service.."))
-            self.bcast.start()
-            gui.log( _("Starting listening service.."))
-            self.client.start()
         else:
             iface_selected = 0
         return
@@ -192,7 +191,7 @@ class McastListener(Thread):
         """Returns the execution log"""
         self.lock.acquire()
         msgs = "\n".join(self.messages)
-        return "# msgs: %d msg_size: %d\n%s" % (len(self.messages), DATAGRAM_SIZE, msgs)
+        return "# received msgs: %d msg_size: %d\n%s" % (len(self.messages), DATAGRAM_SIZE, msgs)
         self.lock.release()
 
     def stop(self):
@@ -223,7 +222,7 @@ class McastListener(Thread):
                 s.close()
                 return
             try:
-                data = s.recv(DATAGRAM_SIZE)
+                data = s.recv(DATAGRAM_SIZE + 1024)
                 count = struct.unpack("<I", data[:struct.calcsize("<I")])[0]
                 self.lock.acquire()
                 curtime = timefunc()
@@ -257,7 +256,7 @@ class BcastListener(Thread):
         """Returns the execution log"""
         self.lock.acquire()
         msgs = "\n".join(self.messages)
-        return "# msgs: %d msg_size: %d\n%s" % (len(self.messages), DATAGRAM_SIZE, msgs)
+        return "# received msgs: %d msg_size: %d\n%s" % (len(self.messages), DATAGRAM_SIZE, msgs)
         self.lock.release()
 
     def stop(self):
@@ -382,7 +381,11 @@ class TrafClient(Thread):
                         # temporary packet
                         packet = " " * 65536
                         while tosend > 0:
-                            count = self.request.send(packet)
+                            if tosend > 65536:
+                                sendl = 65536
+                            else:
+                                sendl = tosend
+                            count = self.request.send(packet[:sendl])
                             tosend -= count
                     except:
                         gui.log(_("Error performing bandwidth test: %s!") % sys.exc_value)

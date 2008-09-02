@@ -4,7 +4,7 @@ import py2exe
 import glob
 
 setup(
-        windows=['client.py', 'trafdump.py'],
+        console=['client.py', 'trafdump.py'],
         options = {
             'py2exe':
                 {

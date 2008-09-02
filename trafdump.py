@@ -4,6 +4,7 @@ Teacher GUI using GLADE
 """
 
 # TODO: detectar quando conexoes nao sao estabelecidas
+# TODO: tirar redundancias entre multicast e broadcast
 
 import sys
 import traceback
@@ -75,12 +76,16 @@ class TrafdumpRunner(Thread):
                 # Marca a maquina como offline
                 self.gui.set_offline(z)
 
+            if get_os() == "Windows":
+                timefunc = time.clock
+            else:
+                timefunc = time.time
             # envia a mensagem
             try:
                 s.send(struct.pack("<b", COMMAND_BANDWIDTH_TCP))
                 # envia o timestamp do experimento e a descricao
                 self.gui.show_progress(_("TCP Bandwidth test for %s: upload") % z)
-                t1 = time.time()
+                t1 = timefunc()
                 tosend = BANDWIDTH_BUFSIZE
                 # temporary packet
                 packet = " " * 65536
@@ -91,25 +96,26 @@ class TrafdumpRunner(Thread):
                         sendl = tosend
                     count = s.send(packet[:sendl])
                     tosend -= count
-                t2 = time.time()
+                t2 = timefunc()
                 time_up = t2 - t1
                 bandwidth_up = float(BANDWIDTH_BUFSIZE / time_up)
-                print "Upload bandwidth: %f (%f sec)" % (bandwidth_up, time_up)
+                print "Upload bandwidth: %f Bytes/sec in %f sec, %f MB/sec" % (bandwidth_up, time_up, (bandwidth_up / 1000000))
                 self.gui.show_progress(_("TCP Bandwidth test for %s: download") % z)
-                t3 = time.time()
-                tosend = BANDWIDTH_BUFSIZE
+                t3 = timefunc()
+                torecv = BANDWIDTH_BUFSIZE
                 # temporary packet
-                while tosend > 0:
+                while torecv > 0:
                     data = s.recv(65536)
                     if not data:
                         print "Error: no data received!"
                         return
-                    tosend -= len(data)
-                t4 = time.time()
+                    torecv -= len(data)
+                t4 = timefunc()
                 s.close()
                 time_down = t4 - t3
                 bandwidth_down = float(BANDWIDTH_BUFSIZE / time_down)
-                print "Download bandwidth: %f (%f sec)" % (bandwidth_down, time_down)
+                print "Download bandwidth: %f Bytes/sec in %f sec, %f MB/sec" % (bandwidth_down, time_down, (bandwidth_down / 1000000))
+                print "Saving results to results.%s.%s.band" % (timestamp_bandwidth, z)
                 fd = open("results.%s.%s.band" % (timestamp_bandwidth, z), "w")
                 fd.write("Buffer size: %d\nUpload: %f sec, %f bytes/sec\nDownload: %f sec, %f bytes/sec\n" % (BANDWIDTH_BUFSIZE, time_up, bandwidth_up, time_down, bandwidth_down))
                 fd.close()
@@ -167,15 +173,22 @@ class TrafdumpRunner(Thread):
         else:
             delay = 0
         print "Delay between messages: %f" % delay
-        data = " " * DATAGRAM_SIZE
+        data = " " * (DATAGRAM_SIZE - struct.calcsize("<I"))
+        if get_os() == "Windows":
+            timefunc = time.clock
+        else:
+            timefunc = time.time
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
             s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             for z in range(num_msgs):
                 packet = struct.pack("<I", z)
+                t1 = timefunc()
                 s.sendto(packet + data, (MCASTADDR, MCASTPORT))
-                if delay > 0:
+                t2 = timefunc()
+                curdelay = delay - (t2 - t1);
+                if curdelay > 0:
                     time.sleep(delay)
                 if (z % 100) == 0:
                     self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
@@ -204,10 +217,9 @@ class TrafdumpRunner(Thread):
                 size = struct.unpack("<I",
                         (s.recv(struct.calcsize("<I")))
                         )[0]
-                print size
-                if size > 0:
-                    print "Recebendo arquivo de %d bytes de %s" % (size, z)
                 fd = open("results.%s.%s.mcast" % (timestamp_bandwidth, z), "wb")
+                print "Saving results to results.%s.%s.mcast" % (timestamp_bandwidth, z)
+                print >>fd, "# total msgs: %d, max bandwidth: %d kbps" % (num_msgs, bandwidth)
                 while size > 0:
                     buf = s.recv(size)
                     fd.write(buf)
@@ -270,7 +282,11 @@ class TrafdumpRunner(Thread):
         else:
             delay = 0
         print "Delay between messages: %f" % delay
-        data = " " * DATAGRAM_SIZE
+        data = " " * (DATAGRAM_SIZE - struct.calcsize("<I"))
+        if get_os() == "Windows":
+            timefunc = time.clock
+        else:
+            timefunc = time.time
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -278,7 +294,11 @@ class TrafdumpRunner(Thread):
             for z in range(num_msgs):
                 packet = struct.pack("<I", z)
                 s.sendto(packet + data, ("255.255.255.255", BCASTPORT))
-                if delay > 0:
+                t1 = timefunc()
+                s.sendto(packet + data, (MCASTADDR, MCASTPORT))
+                t2 = timefunc()
+                curdelay = delay - (t2 - t1);
+                if curdelay > 0:
                     time.sleep(delay)
                 if (z % 100) == 0:
                     self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
@@ -307,10 +327,9 @@ class TrafdumpRunner(Thread):
                 size = struct.unpack("<I",
                         (s.recv(struct.calcsize("<I")))
                         )[0]
-                print size
-                if size > 0:
-                    print "Recebendo arquivo de %d bytes de %s" % (size, z)
                 fd = open("results.%s.%s.bcast" % (timestamp_bandwidth, z), "wb")
+                print "Saving results to results.%s.%s.bcast" % (timestamp_bandwidth, z)
+                print >>fd, "# total msgs: %d, max bandwidth: %d kbps" % (num_msgs, bandwidth)
                 while size > 0:
                     buf = s.recv(size)
                     fd.write(buf)
