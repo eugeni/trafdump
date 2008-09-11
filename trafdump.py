@@ -133,7 +133,7 @@ class TrafdumpRunner(Thread):
                 traceback.print_exc()
                 # Marca a maquina como offline
                 self.gui.set_offline(z)
-        self.gui.show_progress(_("TCP Bandwidth test for %s finished") % z)
+            self.gui.show_progress(_("TCP Bandwidth test for %s finished") % z)
         self.gui.finish_bandwidth()
         # monta os graficos
         self.gui.analyze_bandwidth(timestamp_bandwidth, machines)
@@ -708,7 +708,7 @@ class TrafdumpGui:
         xlabel(_("Execution timeline"))
         # agora faz o grafico da banda
         for client in timelines:
-            title(_("Multicast message delays"))
+            title(_("%s message delays") % type)
             ids, delays = timelines[client]
             plot(ids, delays, label=client)
         grid()
