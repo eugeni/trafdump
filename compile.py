@@ -8,7 +8,7 @@ setup(
         options = {
             'py2exe':
                 {
-                    "includes": "pango,cairo,pangocairo,atk,gobject",
+                    "includes": "pango,cairo,pangocairo,atk,gobject,matplotlib.backends.backend_tkagg",
                 },
                 },
             data_files = [("iface", glob.glob("iface/*"))],

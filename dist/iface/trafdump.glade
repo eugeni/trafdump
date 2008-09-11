@@ -169,6 +169,22 @@
               </packing>
             </child>
             <child>
+              <widget class="GtkButton" id="AnalyzeButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="label" translatable="yes">Analyze results</property>
+                <property name="response_id">0</property>
+                <signal name="clicked" handler="gtk_main_quit"/>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="padding">5</property>
+                <property name="position">8</property>
+              </packing>
+            </child>
+            <child>
               <widget class="GtkButton" id="QuitButton">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
@@ -181,7 +197,7 @@
                 <property name="expand">False</property>
                 <property name="fill">False</property>
                 <property name="padding">5</property>
-                <property name="position">8</property>
+                <property name="position">9</property>
               </packing>
             </child>
           </widget>
