@@ -25,6 +25,12 @@ import SocketServer
 import socket
 from threading import Thread
 
+import glob
+import re
+
+# drawing
+from pylab import *
+
 import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
@@ -33,6 +39,9 @@ from config import *
 
 MACHINES_X = 8
 MACHINES_Y = 8
+
+def printts(ts):
+    return time.asctime(time.localtime(int(ts)))
 
 # {{{ TrafdumpRunner
 class TrafdumpRunner(Thread):
@@ -477,6 +486,7 @@ class TrafdumpGui:
         self.BandwidthButton.connect('clicked', self.bandwidth)
         self.MulticastButton.connect('clicked', self.multicast)
         self.BroadcastButton.connect('clicked', self.broadcast)
+        self.AnalyzeButton.connect('clicked', self.analyze)
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
@@ -500,6 +510,216 @@ class TrafdumpGui:
     def set_service(self, service):
         """Determines the active benchmarking service"""
         self.service = service
+
+    def analyze(self, widget):
+        """Analyzes the results"""
+        # monta a lista de resultados
+        dialog = gtk.Dialog(_("Select experiment"), self.MainWindow, 0,
+                (gtk.STOCK_OK, gtk.RESPONSE_OK,
+                gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
+
+        combobox = gtk.combo_box_new_text()
+        combobox.append_text(_("Select the experiment"))
+
+        # regexps
+        res_r = re.compile('results.(\d+).txt')
+        clients_r = re.compile('results.\d+.(\d+\.\d+\.\d+\.\d+).(\w+)')
+
+        results = glob.glob("results*txt")
+        experiments = []
+        for r in results:
+            print r
+            ret = res_r.findall(r)
+            print ret
+            if not ret:
+                continue
+            timestamp = ret[0]
+            title = open(r).readline().strip()
+            experiments.append(timestamp)
+            combobox.append_text("%s: %s" % (printts(timestamp), title))
+        combobox.set_active(0)
+        dialog.vbox.add(combobox)
+
+        dialog.show_all()
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            dialog.destroy()
+            exp = combobox.get_active()
+        else:
+            dialog.destroy()
+            return
+        if exp == 0:
+            # No experiment selected
+            return
+        timestamp = experiments[exp - 1]
+
+        # mostra o dialogo para escolher os clientes
+        dialog = gtk.Dialog(_("Select clients"), self.MainWindow, 0,
+                (gtk.STOCK_OK, gtk.RESPONSE_OK,
+                gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
+        dialog.vbox.add(gtk.Label(_("Select clients to process")))
+
+        combobox = gtk.combo_box_new_text()
+        combobox.append_text(_("All clients"))
+
+        # process the files
+        files = glob.glob("results.%s.*" % timestamp)
+        res = clients_r.findall("\n".join(files))
+        allclients = []
+        if not res:
+            # no files found
+            sys.exit(0)
+        experiments = {}
+        for client, type in res:
+            exp = type
+            if client in allclients:
+                continue
+            allclients.append(client)
+            combobox.append_text(client)
+
+        combobox.set_active(0)
+        dialog.vbox.add(combobox)
+
+        dialog.show_all()
+        response = dialog.run()
+        if response == gtk.RESPONSE_OK:
+            dialog.destroy()
+            client_selected = combobox.get_active()
+        else:
+            dialog.destroy()
+            return
+
+        if client_selected == 0:
+            clients = allclients
+        else:
+            clients = [allclients[client_selected - 1]]
+
+        # agora calcula os resultados
+        if exp == "band":
+            self.analyze_bandwidth(timestamp, clients)
+        elif exp == "mcast":
+            self.analyze_mcast(timestamp, clients)
+        elif exp == "bcast":
+            self.analyze_mcast(timestamp, clients, type="Broadcast")
+        else:
+            print "Unknown experiment %s" % exp
+
+    def analyze_bandwidth(self, timestamp, clients):
+        """Avalia a banda dos clientes"""
+        xtitles = []
+        bandwidth = []
+        for client in clients:
+            data = open("results.%s.%s.band" % (timestamp, client)).readlines()
+            upload = float(data[1].split(" ")[3]) / 1000000
+            download = float(data[2].split(" ")[3]) / 1000000
+            bandwidth.append(upload)
+            bandwidth.append(download)
+            if len(clients) > 1:
+                xtitles.append(_("\n          Upload"))
+                xtitles.append(_("          Download\n%s") % client)
+            else:
+                xtitles.append(_("Upload"))
+                xtitles.append(_("Download"))
+
+        if len(clients) > 1:
+            fig = figure(figsize=(len(clients) * 3, 12))
+        else:
+            fig = figure()
+
+        if len(clients) == 1:
+            title(_("Bandwidth evaluation for %s" % clients[0]))
+        else:
+            title(_("Bandwidth evaluation for %d clients" % len(clients)))
+        bar(range(len(bandwidth)), bandwidth)
+        xticks(arange(len(xtitles)), xtitles)
+        ylabel(_("Bandwidth (MB/s)"))
+        grid()
+        if len(clients) == 1:
+            filename = "graphs.%s.%s.png" % (timestamp, clients[0])
+        else:
+            filename = "graphs.%s.png" % (timestamp)
+        savefig(filename, format="png")
+        print "Saving results to %s" % filename
+        if get_os() == "Linux":
+            os.system("xdg-open %s &" % filename)
+        else:
+            os.system("start %s" % filename)
+
+    def analyze_mcast(self, timestamp, clients, type="Multicast"):
+        """Avalia a banda dos clientes"""
+        xtitles = []
+        messages = []
+        timelines = {}
+        for client in clients:
+            if type == "Multicast":
+                ext = "mcast"
+            else:
+                ext = "bcast"
+            data = open("results.%s.%s.%s" % (timestamp, client, ext)).readlines()
+            total_msgs = int(data[0].split(" ")[3].replace("," ,""))
+            bandwidth = int(data[0].split(" ")[6])
+            received_msgs = int(data[1].split(" ")[3])
+
+            received_frac = float((received_msgs * 100) / total_msgs)
+            messages.append(received_frac)
+            xtitles.append("%s/%0.2f%%" % (client, received_frac))
+
+            ids = []
+            delays = []
+            for l in data[2:]:
+                try:
+                    id, delay, t1, t2 = l.split(" ")
+                except:
+                    continue
+                id = int(id)
+                delay = float(delay)
+                ids.append(id)
+                delays.append(delay)
+            timelines[client] = (ids, delays)
+
+        if len(clients) > 1:
+            fig = figure(figsize=(len(clients) * 3, 12))
+        else:
+            fig = figure()
+
+        title(_("%s message loss" % (type)))
+        bar(range(len(messages)), messages)
+        xticks(arange(len(xtitles)), xtitles)
+        ylabel(_("Messages received (%%)"))
+        grid()
+
+        if len(clients) == 1:
+            filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
+        else:
+            filename = "graphs.%s.loss.png" % (timestamp)
+        savefig(filename, format="png")
+        print "Saving results to %s" % filename
+        if get_os() == "Linux":
+            os.system("xdg-open %s &" % filename)
+        else:
+            os.system("start %s" % filename)
+
+        fig = figure()
+        ylabel(_("Message latency (s)"))
+        xlabel(_("Execution timeline"))
+        # agora faz o grafico da banda
+        for client in timelines:
+            title(_("Multicast message delays"))
+            ids, delays = timelines[client]
+            plot(ids, delays, label=client)
+        grid()
+        legend()
+
+        if len(clients) == 1:
+            filename = "graphs.%s.%s.delays.png" % (timestamp, clients[0])
+        else:
+            filename = "graphs.%s.delays.png" % (timestamp)
+        savefig(filename, format="png")
+        print "Saving results to %s" % filename
+        if get_os() == "Linux":
+            os.system("xdg-open %s &" % filename)
+        else:
+            os.system("start %s" % filename)
 
     def question(self, title, input=None):
         """Asks a question :)"""
