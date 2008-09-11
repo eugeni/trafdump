@@ -135,6 +135,8 @@ class TrafdumpRunner(Thread):
                 self.gui.set_offline(z)
         self.gui.show_progress(_("TCP Bandwidth test for %s finished") % z)
         self.gui.finish_bandwidth()
+        # monta os graficos
+        self.gui.analyze_bandwidth(timestamp_bandwidth, machines)
 
     def multicast(self, machines, num_msgs, bandwidth):
         """Inicia a captura"""
@@ -244,6 +246,7 @@ class TrafdumpRunner(Thread):
         self.gui.multicast_finished()
         # Agora recupera os dados de todos
         self.gui.show_progress(_("Finished multicasting experiment"))
+        self.gui.analyze_mcast(timestamp_bandwidth, machines)
 
     def broadcast(self, machines, num_msgs, bandwidth):
         """Inicia a captura de dados broadcast"""
@@ -354,6 +357,7 @@ class TrafdumpRunner(Thread):
         self.gui.broadcast_finished()
         # Agora recupera os dados de todos
         self.gui.show_progress(_("Finished broadcasting experiment"))
+        self.gui.analyze_mcast(timestamp_bandwidth, machines, type="Broadcast")
 
     def start_capture(self, machines, descr):
         """Inicia a captura"""
@@ -662,7 +666,7 @@ class TrafdumpGui:
 
             received_frac = float((received_msgs * 100) / total_msgs)
             messages.append(received_frac)
-            xtitles.append("%s/%0.2f%%" % (client, received_frac))
+            xtitles.append("%s\n%d sent\n%d recv" % (client, total_msgs, received_msgs))
 
             ids = []
             delays = []
