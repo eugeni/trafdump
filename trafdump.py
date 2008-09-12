@@ -654,6 +654,10 @@ class TrafdumpGui:
         xtitles = []
         messages = []
         timelines = {}
+        # para fazer as medias
+        losses = {}
+        total_sent = 0
+        total_recv = 0
         for client in clients:
             if type == "Multicast":
                 ext = "mcast"
@@ -663,8 +667,13 @@ class TrafdumpGui:
             total_msgs = int(data[0].split(" ")[3].replace("," ,""))
             bandwidth = int(data[0].split(" ")[6])
             received_msgs = int(data[1].split(" ")[3])
-
             received_frac = float((received_msgs * 100) / total_msgs)
+
+            # atualiza a contagem global
+            total_sent += total_msgs
+            total_recv += received_msgs
+            losses[client] = (total_msgs, received_msgs, received_frac)
+
             messages.append(received_frac)
             xtitles.append("%s\n%d sent\n%d recv" % (client, total_msgs, received_msgs))
 
@@ -683,6 +692,15 @@ class TrafdumpGui:
 
         if len(clients) > 1:
             fig = figure(figsize=(len(clients) * 3, 12))
+            # cria o arquito de log de tudo
+            output = open("stat.%s.csv" % timestamp, "w")
+            total_frac = float((total_recv * 100) / total_sent)
+            print >>output, _("Client, sent messages, received messages, received fraction")
+            print >>output, "%s, %d, %d, %f" % (_("All clients"), total_sent, total_recv, total_frac)
+            for client in losses:
+                sent, recv, frac = losses[client]
+                print >>output, "%s, %d, %d, %f" % (client, sent, recv, frac)
+            output.close()
         else:
             fig = figure()
 
@@ -710,9 +728,11 @@ class TrafdumpGui:
         for client in timelines:
             title(_("%s message delays") % type)
             ids, delays = timelines[client]
-            plot(ids, delays, label=client)
+            # com legenda nao cabe..
+            #plot(ids, delays, label=client)
+            plot(ids, delays)
         grid()
-        legend()
+        #legend()
 
         if len(clients) == 1:
             filename = "graphs.%s.%s.delays.png" % (timestamp, clients[0])
