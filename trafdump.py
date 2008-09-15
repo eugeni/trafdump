@@ -29,6 +29,8 @@ import glob
 import re
 
 # drawing
+from matplotlib.backends.backend_gtk import FigureCanvasGTK as FigureCanvas
+from matplotlib.backends.backend_gtk import NavigationToolbar2GTK as NavigationToolbar
 from pylab import *
 
 import gettext
@@ -748,22 +750,48 @@ class TrafdumpGui:
             return
 
         # Generates graph
-        title(_("%s message loss" % (type)))
-        bar(range(len(messages)), messages)
+        ax = fig.add_subplot(111)
+        fig.suptitle(_("%s message loss" % (type)))
+        ax.bar(range(len(messages)), messages)
         xticks(arange(len(xtitles)), xtitles)
-        ylabel(_("Messages received (%%)"))
-        grid()
+        ylabel(_("Messages received (%)"))
+        ax.grid()
 
-        if len(clients) == 1:
-            filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
-        else:
-            filename = "graphs.%s.loss.png" % (timestamp)
-        savefig(filename, format="png")
-        print "Saving results to %s" % filename
-        if get_os() == "Linux":
-            os.system("xdg-open %s &" % filename)
-        else:
-            os.system("start %s" % filename)
+        # mostra a figura
+        win = gtk.Window()
+        win.connect("destroy", lambda w: w.destroy())
+        win.set_default_size(640, 480)
+        win.set_title(_("Results"))
+
+        vbox = gtk.VBox()
+        win.add(vbox)
+
+        sw = gtk.ScrolledWindow()
+        vbox.add(sw)
+
+        # A scrolled window border goes outside the scrollbars and viewport
+        sw.set_border_width (10)
+        # policy: ALWAYS, AUTOMATIC, NEVER
+        sw.set_policy (hscrollbar_policy=gtk.POLICY_AUTOMATIC,
+                       vscrollbar_policy=gtk.POLICY_ALWAYS)
+
+        canvas = FigureCanvas(fig)
+        sw.add_with_viewport(canvas)
+        toolbar = NavigationToolbar(canvas, win)
+        vbox.pack_start(toolbar, False, False)
+
+        win.show_all()
+
+        #if len(clients) == 1:
+        #    filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
+        #else:
+        #    filename = "graphs.%s.loss.png" % (timestamp)
+        #savefig(filename, format="png")
+        #print "Saving results to %s" % filename
+        #if get_os() == "Linux":
+        #    os.system("xdg-open %s &" % filename)
+        #else:
+        #    os.system("start %s" % filename)
 
         # Do we need latency here??
         return
