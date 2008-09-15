@@ -722,7 +722,10 @@ class TrafdumpGui:
             delays = [float(x.split(" ")[1]) for x in data[2:] if len(x) > 1]
             timelines[client] = (ids, delays)
 
-            meandelay = reduce(lambda x, y: x+y, delays) / len(delays)
+            if delays:
+                meandelay = reduce(lambda x, y: x+y, delays) / len(delays)
+            else:
+                meandelay = 1
             maxbandwidth = ((1/meandelay) * 8 * 1450) / 1024
 
             realbandwidth += maxbandwidth
@@ -730,8 +733,8 @@ class TrafdumpGui:
             losses[client] = (total_msgs, received_msgs, received_frac, maxbandwidth)
 
         realbandwidth /= len(clients)
+        fig = figure()
         if len(clients) > 1:
-            fig = figure(figsize=(len(clients) * 3, 12))
             # cria o arquito de log de tudo
             output = open("stat.%s.csv" % timestamp, "w")
             total_frac = float((total_recv * 100) / total_sent)
@@ -742,8 +745,6 @@ class TrafdumpGui:
                 sent, recv, frac, maxbandwidth = losses[client]
                 print >>output, "%s, %d, %d, %f, %f" % (client, sent, recv, frac, maxbandwidth)
             output.close()
-        else:
-            fig = figure()
 
         # TODO: show graphs instead of saving!!!
         if not doplot:
@@ -751,7 +752,7 @@ class TrafdumpGui:
 
         # Generates graph
         ax = fig.add_subplot(111)
-        fig.suptitle(_("%s message loss" % (type)))
+        fig.suptitle(_("%s reception quality" % (type)))
         ax.bar(range(len(messages)), messages)
         xticks(arange(len(xtitles)), xtitles)
         ylabel(_("Messages received (%)"))
@@ -773,9 +774,10 @@ class TrafdumpGui:
         sw.set_border_width (10)
         # policy: ALWAYS, AUTOMATIC, NEVER
         sw.set_policy (hscrollbar_policy=gtk.POLICY_AUTOMATIC,
-                       vscrollbar_policy=gtk.POLICY_ALWAYS)
+                       vscrollbar_policy=gtk.POLICY_AUTOMATIC)
 
         canvas = FigureCanvas(fig)
+        canvas.set_size_request(600 + (10 * len(clients)), 400)
         sw.add_with_viewport(canvas)
         toolbar = NavigationToolbar(canvas, win)
         vbox.pack_start(toolbar, False, False)
