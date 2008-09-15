@@ -164,12 +164,12 @@ class TrafdumpRunner(Thread):
             # envia a mensagem
             try:
                 s.send(struct.pack("<b", COMMAND_BANDWIDTH_MULTICAST_START))
+                s.close()
             except:
                 print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
                 traceback.print_exc()
                 # Marca a maquina como offline
                 self.gui.set_offline(z)
-            s.close()
         # Agora faz o experimento
         self.gui.show_progress(_("Starting multicasting experiment in 2.."))
 

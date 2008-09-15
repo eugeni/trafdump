@@ -19,3 +19,5 @@ Processar os dados:
  - Usar backend leve
  - Determinar quando o AP cai
    - Transfencia TCP por N minutos (?)
+ - Marcar clientes que falharam durante o teste (ou na hora de mostrar?)
+ - Instalar glib2 no windows.
