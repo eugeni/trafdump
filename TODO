@@ -14,3 +14,8 @@ Processar os dados:
    - Mensagens multicast: tela: ip.dst == 225.2.41.11 - tshark -q -r results.1219279067.192.168.1.3.pcap -z io,stat,0.1,ip.dst==225.2.41.11
                           arquivos: ip.dst == 225.2.41.12 - tshark -q -r results.1219279067.192.168.1.3.pcap -z io,stat,0.1,ip.dst==225.2.41.12
                           bcast: ip.dst == 224.40.40.42 - tshark -q -r results.1219279067.192.168.1.3.pcap -z io,stat,0.1,ip.dst==224.40.40.42
+
+### graficos
+ - Usar backend leve
+ - Determinar quando o AP cai
+   - Transfencia TCP por N minutos (?)

@@ -171,10 +171,12 @@ class TrafdumpRunner(Thread):
                 self.gui.set_offline(z)
             s.close()
         # Agora faz o experimento
-        self.gui.show_progress(_("Started multicasting experiment"))
+        self.gui.show_progress(_("Starting multicasting experiment in 2.."))
 
         # aguarda um tempo para os clientes se estabilizarem
-        time.sleep(2)
+        time.sleep(1)
+        self.gui.show_progress(_("Starting multicasting experiment in 1.."))
+        time.sleep(1)
 
         # TODO: calcular delays de acordo com o tempo de envio de pacote
         if bandwidth > 0:
@@ -252,6 +254,9 @@ class TrafdumpRunner(Thread):
 
     def broadcast(self, machines, num_msgs, bandwidth):
         """Inicia a captura de dados broadcast"""
+        # XXX: TODO: XXX
+        # TODO: !!! !!! !!! join with multicast !!! !!! !!!
+        # XXX: TODO: XXX
 
         timestamp_bandwidth = str(int(time.time()))
 
@@ -525,7 +530,7 @@ class TrafdumpGui:
                 gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
 
         combobox = gtk.combo_box_new_text()
-        combobox.append_text(_("Process all experiments"))
+        combobox.append_text(_("Batch-process all experiments"))
 
         # regexps
         res_r = re.compile('results.(\d+).txt')
@@ -716,7 +721,7 @@ class TrafdumpGui:
             total_recv += received_msgs
 
             messages.append(received_frac)
-            xtitles.append("%s\n%d sent\n%d recv" % (client, total_msgs, received_msgs))
+            xtitles.append("%s\n%d sent, %d recv" % (client, total_msgs, received_msgs))
 
             ids = []
             delays = [float(x.split(" ")[1]) for x in data[2:] if len(x) > 1]
@@ -777,7 +782,7 @@ class TrafdumpGui:
                        vscrollbar_policy=gtk.POLICY_AUTOMATIC)
 
         canvas = FigureCanvas(fig)
-        canvas.set_size_request(600 + (10 * len(clients)), 400)
+#        canvas.set_size_request(600 + (10 * len(clients)), 400)
         sw.add_with_viewport(canvas)
         toolbar = NavigationToolbar(canvas, win)
         vbox.pack_start(toolbar, False, False)
