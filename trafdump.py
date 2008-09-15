@@ -144,7 +144,7 @@ class TrafdumpRunner(Thread):
         timestamp_bandwidth = str(int(time.time()))
 
         fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        fd.write(_("Multicast Bandwidth evaluation.\nClients: %s") % ",".join(machines))
+        print >>fd, _("Multicast Bandwidth evaluation: %d msgs, %d bandwidth.\nClients: %s") % (num_msgs, bandwidth, ",".join(machines))
         fd.close()
 
         print "Captura iniciada"
@@ -208,7 +208,7 @@ class TrafdumpRunner(Thread):
             self.gui.show_progress(_("Error sending multicast message: %s") % sys.exc_value)
 
 
-        self.gui.show_progress(_("Sending Multicast Bandwidth finish request to %s") % z)
+        self.gui.show_progress(_("Sending Multicast Bandwidth finish request"))
         # Desconecta os clientes
         for z in machines:
             print "Enviando para %s" % z
@@ -254,7 +254,7 @@ class TrafdumpRunner(Thread):
         timestamp_bandwidth = str(int(time.time()))
 
         fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        fd.write(_("Broadcast Bandwidth evaluation.\nClients: %s") % ",".join(machines))
+        print >>fd, _("Broadcast Bandwidth evaluation: %d msgs, %d bandwidth.\nClients: %s") % (num_msgs, bandwidth, ",".join(machines))
         fd.close()
 
         print "Captura iniciada"
@@ -319,7 +319,7 @@ class TrafdumpRunner(Thread):
             self.gui.show_progress(_("Error sending broadcast message: %s") % sys.exc_value)
 
 
-        self.gui.show_progress(_("Sending Broadcast Bandwidth finish request to %s") % z)
+        self.gui.show_progress(_("Sending Broadcast Bandwidth finish request"))
         # Desconecta os clientes
         for z in machines:
             print "Enviando para %s" % z
@@ -532,9 +532,7 @@ class TrafdumpGui:
         results = glob.glob("results*txt")
         experiments = []
         for r in results:
-            print r
             ret = res_r.findall(r)
-            print ret
             if not ret:
                 continue
             timestamp = ret[0]
@@ -658,12 +656,17 @@ class TrafdumpGui:
         losses = {}
         total_sent = 0
         total_recv = 0
+        bandwidth=0
         for client in clients:
             if type == "Multicast":
                 ext = "mcast"
             else:
                 ext = "bcast"
-            data = open("results.%s.%s.%s" % (timestamp, client, ext)).readlines()
+            try:
+                data = open("results.%s.%s.%s" % (timestamp, client, ext)).readlines()
+            except:
+                print "Unable to open file for %s" % client
+                continue
             total_msgs = int(data[0].split(" ")[3].replace("," ,""))
             bandwidth = int(data[0].split(" ")[6])
             received_msgs = int(data[1].split(" ")[3])
@@ -696,6 +699,7 @@ class TrafdumpGui:
             output = open("stat.%s.csv" % timestamp, "w")
             total_frac = float((total_recv * 100) / total_sent)
             print >>output, _("Client, sent messages, received messages, received fraction")
+            print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
             print >>output, "%s, %d, %d, %f" % (_("All clients"), total_sent, total_recv, total_frac)
             for client in losses:
                 sent, recv, frac = losses[client]
@@ -704,6 +708,7 @@ class TrafdumpGui:
         else:
             fig = figure()
 
+        # Generates graph
         title(_("%s message loss" % (type)))
         bar(range(len(messages)), messages)
         xticks(arange(len(xtitles)), xtitles)
@@ -720,6 +725,9 @@ class TrafdumpGui:
             os.system("xdg-open %s &" % filename)
         else:
             os.system("start %s" % filename)
+
+        # Do we need latency here??
+        return
 
         fig = figure()
         ylabel(_("Message latency (s)"))
