@@ -241,12 +241,11 @@ class TrafdumpRunner(Thread):
                     size -= len(buf)
                 print >>fd, "\n"
                 fd.close()
+                s.close()
             except:
                 print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
                 traceback.print_exc()
                 self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
-            finally:
-                s.close()
         self.gui.multicast_finished()
         # Agora recupera os dados de todos
         self.gui.show_progress(_("Finished multicasting experiment"))
@@ -602,7 +601,8 @@ class TrafdumpGui:
         allclients = []
         if not res:
             # no files found
-            sys.exit(0)
+            print "No clients found!"
+            return
         experiments = {}
         for client, type in res:
             exp = type
@@ -701,6 +701,9 @@ class TrafdumpGui:
         total_recv = 0
         bandwidth=0
         realbandwidth=0
+
+        if len(clients) < 1:
+            return
         for client in clients:
             if type == "Multicast":
                 ext = "mcast"
