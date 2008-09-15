@@ -731,24 +731,24 @@ class TrafdumpGui:
                 meandelay = reduce(lambda x, y: x+y, delays) / len(delays)
             else:
                 meandelay = 1
-            maxbandwidth = ((1/meandelay) * 8 * 1450) / 1024
+            maxbandwidth = ((1/meandelay) * 8 * 1450) / 1000 # 1024 - kibps
 
             realbandwidth += maxbandwidth
 
             losses[client] = (total_msgs, received_msgs, received_frac, maxbandwidth)
 
+        total_frac = float((total_recv * 100) / total_sent)
         realbandwidth /= len(clients)
         fig = figure()
         if len(clients) > 1:
             # cria o arquito de log de tudo
             output = open("stat.%s.csv" % timestamp, "w")
-            total_frac = float((total_recv * 100) / total_sent)
             print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
             print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
-            print >>output, "%s, %d, %d, %f, %f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
+            print >>output, "%s, %d, %d, %d, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
             for client in losses:
                 sent, recv, frac, maxbandwidth = losses[client]
-                print >>output, "%s, %d, %d, %f, %f" % (client, sent, recv, frac, maxbandwidth)
+                print >>output, "%s, %d, %d, %d, %0.2f" % (client, sent, recv, frac, maxbandwidth)
             output.close()
 
         # TODO: show graphs instead of saving!!!
@@ -757,7 +757,7 @@ class TrafdumpGui:
 
         # Generates graph
         ax = fig.add_subplot(111)
-        fig.suptitle(_("%s reception quality" % (type)))
+        fig.suptitle(_("%s reception quality (%d%% average, %0.2f Kbps max)" % (type, total_frac, realbandwidth)))
         ax.bar(range(len(messages)), messages)
         xticks(arange(len(xtitles)), xtitles)
         ylabel(_("Messages received (%)"))
