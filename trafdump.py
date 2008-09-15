@@ -523,7 +523,7 @@ class TrafdumpGui:
                 gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
 
         combobox = gtk.combo_box_new_text()
-        combobox.append_text(_("Select the experiment"))
+        combobox.append_text(_("Process all experiments"))
 
         # regexps
         res_r = re.compile('results.(\d+).txt')
@@ -550,9 +550,34 @@ class TrafdumpGui:
         else:
             dialog.destroy()
             return
+
+        # processa todos os experimentos?
         if exp == 0:
-            # No experiment selected
+            # faz todos
+            for timestamp in experiments:
+                # faz todos os experimentos, um por um
+                files = glob.glob("results.%s.*" % timestamp)
+                res = clients_r.findall("\n".join(files))
+                if not res:
+                    continue
+                clients = []
+                for client, type in res:
+                    exp = type
+                    if client in clients:
+                        continue
+                    clients.append(client)
+                # agora calcula os resultados
+                if exp == "band":
+                    self.analyze_bandwidth(timestamp, clients, doplot=False)
+                elif exp == "mcast":
+                    self.analyze_mcast(timestamp, clients, doplot=False)
+                elif exp == "bcast":
+                    self.analyze_mcast(timestamp, clients, type="Broadcast", doplot=False)
+                else:
+                    print "Unknown experiment %s" % exp
             return
+
+        # agora faz experimentos especificos
         timestamp = experiments[exp - 1]
 
         # mostra o dialogo para escolher os clientes
@@ -606,48 +631,59 @@ class TrafdumpGui:
         else:
             print "Unknown experiment %s" % exp
 
-    def analyze_bandwidth(self, timestamp, clients):
+    def analyze_bandwidth(self, timestamp, clients, doplot=True):
         """Avalia a banda dos clientes"""
         xtitles = []
-        bandwidth = []
+        uploads = []
+        downloads = []
         for client in clients:
             data = open("results.%s.%s.band" % (timestamp, client)).readlines()
             upload = float(data[1].split(" ")[3]) / 1000000
             download = float(data[2].split(" ")[3]) / 1000000
-            bandwidth.append(upload)
-            bandwidth.append(download)
-            if len(clients) > 1:
-                xtitles.append(_("\n          Upload"))
-                xtitles.append(_("          Download\n%s") % client)
-            else:
-                xtitles.append(_("Upload"))
-                xtitles.append(_("Download"))
+            uploads.append(upload)
+            downloads.append(download)
 
         if len(clients) > 1:
             fig = figure(figsize=(len(clients) * 3, 12))
+            output = open("stat.%s.csv" % timestamp, "w")
+            print >>output, _("Client, upload, download")
+            meanupload = reduce(lambda x, y: x + y, uploads) / len(uploads)
+            meandownload = reduce(lambda x, y: x + y, downloads) / len(downloads)
+            print >>output, _("All clients, %f, %f") % (meanupload, meandownload)
+            for z in range(len(clients)):
+                client = clients[z]
+                upload = uploads[z]
+                download = downloads[z]
+                print >>output, "%s, %f, %f" % (client, upload, download)
+
         else:
             fig = figure()
 
-        if len(clients) == 1:
-            title(_("Bandwidth evaluation for %s" % clients[0]))
-        else:
-            title(_("Bandwidth evaluation for %d clients" % len(clients)))
-        bar(range(len(bandwidth)), bandwidth)
-        xticks(arange(len(xtitles)), xtitles)
-        ylabel(_("Bandwidth (MB/s)"))
-        grid()
-        if len(clients) == 1:
-            filename = "graphs.%s.%s.png" % (timestamp, clients[0])
-        else:
-            filename = "graphs.%s.png" % (timestamp)
-        savefig(filename, format="png")
-        print "Saving results to %s" % filename
-        if get_os() == "Linux":
-            os.system("xdg-open %s &" % filename)
-        else:
-            os.system("start %s" % filename)
+        # TODO: save CSV
 
-    def analyze_mcast(self, timestamp, clients, type="Multicast"):
+        if not doplot:
+            return
+
+        #if len(clients) == 1:
+        #    title(_("Bandwidth evaluation for %s" % clients[0]))
+        #else:
+        #    title(_("Bandwidth evaluation for %d clients" % len(clients)))
+        #bar(range(len(uploads)), uploads)
+        #xticks(arange(len(clients)), clients)
+        #ylabel(_("Bandwidth (MB/s)"))
+        #grid()
+        #if len(clients) == 1:
+        #    filename = "graphs.%s.%s.png" % (timestamp, clients[0])
+        #else:
+        #    filename = "graphs.%s.png" % (timestamp)
+        #savefig(filename, format="png")
+        #print "Saving results to %s" % filename
+        #if get_os() == "Linux":
+        #    os.system("xdg-open %s &" % filename)
+        #else:
+        #    os.system("start %s" % filename)
+
+    def analyze_mcast(self, timestamp, clients, type="Multicast", doplot=True):
         """Avalia a banda dos clientes"""
         xtitles = []
         messages = []
@@ -657,6 +693,7 @@ class TrafdumpGui:
         total_sent = 0
         total_recv = 0
         bandwidth=0
+        realbandwidth=0
         for client in clients:
             if type == "Multicast":
                 ext = "mcast"
@@ -675,38 +712,40 @@ class TrafdumpGui:
             # atualiza a contagem global
             total_sent += total_msgs
             total_recv += received_msgs
-            losses[client] = (total_msgs, received_msgs, received_frac)
 
             messages.append(received_frac)
             xtitles.append("%s\n%d sent\n%d recv" % (client, total_msgs, received_msgs))
 
             ids = []
-            delays = []
-            for l in data[2:]:
-                try:
-                    id, delay, t1, t2 = l.split(" ")
-                except:
-                    continue
-                id = int(id)
-                delay = float(delay)
-                ids.append(id)
-                delays.append(delay)
+            delays = [float(x.split(" ")[1]) for x in data[2:] if len(x) > 1]
             timelines[client] = (ids, delays)
 
+            meandelay = reduce(lambda x, y: x+y, delays) / len(delays)
+            maxbandwidth = ((1/meandelay) * 8 * 1450) / 1024
+
+            realbandwidth += maxbandwidth
+
+            losses[client] = (total_msgs, received_msgs, received_frac, maxbandwidth)
+
+        realbandwidth /= len(clients)
         if len(clients) > 1:
             fig = figure(figsize=(len(clients) * 3, 12))
             # cria o arquito de log de tudo
             output = open("stat.%s.csv" % timestamp, "w")
             total_frac = float((total_recv * 100) / total_sent)
-            print >>output, _("Client, sent messages, received messages, received fraction")
+            print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
             print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
-            print >>output, "%s, %d, %d, %f" % (_("All clients"), total_sent, total_recv, total_frac)
+            print >>output, "%s, %d, %d, %f, %f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
             for client in losses:
-                sent, recv, frac = losses[client]
-                print >>output, "%s, %d, %d, %f" % (client, sent, recv, frac)
+                sent, recv, frac, maxbandwidth = losses[client]
+                print >>output, "%s, %d, %d, %f, %f" % (client, sent, recv, frac, maxbandwidth)
             output.close()
         else:
             fig = figure()
+
+        # TODO: show graphs instead of saving!!!
+        if not doplot:
+            return
 
         # Generates graph
         title(_("%s message loss" % (type)))
@@ -729,29 +768,29 @@ class TrafdumpGui:
         # Do we need latency here??
         return
 
-        fig = figure()
-        ylabel(_("Message latency (s)"))
-        xlabel(_("Execution timeline"))
-        # agora faz o grafico da banda
-        for client in timelines:
-            title(_("%s message delays") % type)
-            ids, delays = timelines[client]
-            # com legenda nao cabe..
-            #plot(ids, delays, label=client)
-            plot(ids, delays)
-        grid()
-        #legend()
+        #fig = figure()
+        #ylabel(_("Message latency (s)"))
+        #xlabel(_("Execution timeline"))
+        ## agora faz o grafico da banda
+        #for client in timelines:
+        #    title(_("%s message delays") % type)
+        #    ids, delays = timelines[client]
+        #    # com legenda nao cabe..
+        #    #plot(ids, delays, label=client)
+        #    plot(ids, delays)
+        #grid()
+        ##legend()
 
-        if len(clients) == 1:
-            filename = "graphs.%s.%s.delays.png" % (timestamp, clients[0])
-        else:
-            filename = "graphs.%s.delays.png" % (timestamp)
-        savefig(filename, format="png")
-        print "Saving results to %s" % filename
-        if get_os() == "Linux":
-            os.system("xdg-open %s &" % filename)
-        else:
-            os.system("start %s" % filename)
+        #if len(clients) == 1:
+        #    filename = "graphs.%s.%s.delays.png" % (timestamp, clients[0])
+        #else:
+        #    filename = "graphs.%s.delays.png" % (timestamp)
+        #savefig(filename, format="png")
+        #print "Saving results to %s" % filename
+        #if get_os() == "Linux":
+        #    os.system("xdg-open %s &" % filename)
+        #else:
+        #    os.system("start %s" % filename)
 
     def question(self, title, input=None):
         """Asks a question :)"""
