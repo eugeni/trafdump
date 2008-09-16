@@ -29,6 +29,8 @@ import glob
 import re
 
 # drawing
+import matplotlib
+matplotlib.use("gdk")
 from matplotlib.backends.backend_gtk import FigureCanvasGTK as FigureCanvas
 from matplotlib.backends.backend_gtk import NavigationToolbar2GTK as NavigationToolbar
 from pylab import *
