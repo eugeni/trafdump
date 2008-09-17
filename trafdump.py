@@ -142,230 +142,170 @@ class TrafdumpRunner(Thread):
         # monta os graficos
         self.gui.analyze_bandwidth(timestamp_bandwidth, machines)
 
-    def multicast(self, machines, num_msgs, bandwidth):
+    def multicast(self, machines, num_msgs, bandwidth, type="multicast"):
         """Inicia a captura"""
 
-        timestamp_bandwidth = str(int(time.time()))
-
-        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        print >>fd, _("Multicast Bandwidth evaluation: %d msgs, %d bandwidth.\nClients: %s") % (num_msgs, bandwidth, ",".join(machines))
-        fd.close()
-
-        print "Captura iniciada"
-        # Envia as mensagens
-        for z in machines:
-            self.gui.show_progress(_("Sending Multicast Bandwidth test request to %s") % z)
-            print "Enviando para %s" % z
-            # enviando mensagem para cliente para iniciar a captura
-            s = connect(z, LISTENPORT, timeout=5)
-            if not s:
-                print _("Erro conectando a %s!" % z)
-                traceback.print_exc()
-                # Marca a maquina como offline
-                self.gui.set_offline(z)
-            # envia a mensagem
-            try:
-                s.send(struct.pack("<b", COMMAND_BANDWIDTH_MULTICAST_START))
-                s.close()
-            except:
-                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
-                traceback.print_exc()
-                # Marca a maquina como offline
-                self.gui.set_offline(z)
-        # Agora faz o experimento
-        self.gui.show_progress(_("Starting multicasting experiment in 2.."))
-
-        # aguarda um tempo para os clientes se estabilizarem
-        time.sleep(1)
-        self.gui.show_progress(_("Starting multicasting experiment in 1.."))
-        time.sleep(1)
-
-        # TODO: calcular delays de acordo com o tempo de envio de pacote
-        if bandwidth > 0:
-            delay = 1 / (
-                            (
-                                (bandwidth * 1024) / 8.0
-                            ) / DATAGRAM_SIZE
-                        )
-        else:
-            delay = 0
-        print "Delay between messages: %f" % delay
-        data = " " * (DATAGRAM_SIZE - struct.calcsize("<I"))
-        if get_os() == "Windows":
-            timefunc = time.clock
-        else:
-            timefunc = time.time
-        try:
+        # funcoes de socket
+        def sock_mcast():
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
             s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            for z in range(num_msgs):
-                packet = struct.pack("<I", z)
-                t1 = timefunc()
-                s.sendto(packet + data, (MCASTADDR, MCASTPORT))
-                t2 = timefunc()
-                curdelay = delay - (t2 - t1);
-                if curdelay > 0:
-                    time.sleep(delay)
-                if (z % 100) == 0:
-                    self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
-        except:
-            traceback.print_exc()
-            self.gui.show_progress(_("Error sending multicast message: %s") % sys.exc_value)
+            return s
 
-
-        self.gui.show_progress(_("Sending Multicast Bandwidth finish request"))
-        # Desconecta os clientes
-        for z in machines:
-            print "Enviando para %s" % z
-            # enviando mensagem para cliente para iniciar a captura
-            s = connect(z, LISTENPORT, timeout=3)
-            if not s:
-                print _("Erro conectando a %s!" % z)
-                self.gui.set_offline(z, _("Unable to connect to %s!") % z)
-            # envia a mensagem
-            try:
-                s.send(struct.pack("<b", COMMAND_BANDWIDTH_MULTICAST_STOP))
-            except:
-                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
-                self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
-            # agora vamos receber o arquivo
-            try:
-                size = struct.unpack("<I",
-                        (s.recv(struct.calcsize("<I")))
-                        )[0]
-                fd = open("results.%s.%s.mcast" % (timestamp_bandwidth, z), "wb")
-                print "Saving results to results.%s.%s.mcast" % (timestamp_bandwidth, z)
-                print >>fd, "# total msgs: %d, max bandwidth: %d kbps" % (num_msgs, bandwidth)
-                while size > 0:
-                    buf = s.recv(size)
-                    fd.write(buf)
-                    size -= len(buf)
-                print >>fd, "\n"
-                fd.close()
-                s.close()
-            except:
-                print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
-                traceback.print_exc()
-                self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
-        self.gui.multicast_finished()
-        # Agora recupera os dados de todos
-        self.gui.show_progress(_("Finished multicasting experiment"))
-        self.gui.analyze_mcast(timestamp_bandwidth, machines)
-
-    def broadcast(self, machines, num_msgs, bandwidth):
-        """Inicia a captura de dados broadcast"""
-        # XXX: TODO: XXX
-        # TODO: !!! !!! !!! join with multicast !!! !!! !!!
-        # XXX: TODO: XXX
-
-        timestamp_bandwidth = str(int(time.time()))
-
-        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        print >>fd, _("Broadcast Bandwidth evaluation: %d msgs, %d bandwidth.\nClients: %s") % (num_msgs, bandwidth, ",".join(machines))
-        fd.close()
-
-        print "Captura iniciada"
-        # Envia as mensagens
-        for z in machines:
-            self.gui.show_progress(_("Sending Broadcast Bandwidth test request to %s") % z)
-            print "Enviando para %s" % z
-            # enviando mensagem para cliente para iniciar a captura
-            s = connect(z, LISTENPORT, timeout=5)
-            if not s:
-                print _("Erro conectando a %s!" % z)
-                traceback.print_exc()
-                # Marca a maquina como offline
-                self.gui.set_offline(z)
-            # envia a mensagem
-            try:
-                s.send(struct.pack("<b", COMMAND_BANDWIDTH_BROADCAST_START))
-            except:
-                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
-                traceback.print_exc()
-                # Marca a maquina como offline
-                self.gui.set_offline(z)
-            s.close()
-        # Agora faz o experimento
-        self.gui.show_progress(_("Started broadcasting experiment"))
-
-        # aguarda um tempo para os clientes se estabilizarem
-        time.sleep(2)
-
-        # TODO: calcular delays de acordo com o tempo de envio de pacote
-        if bandwidth > 0:
-            delay = 1 / (
-                            (
-                                (bandwidth * 1024) / 8.0
-                            ) / DATAGRAM_SIZE
-                        )
-        else:
-            delay = 0
-        print "Delay between messages: %f" % delay
-        data = " " * (DATAGRAM_SIZE - struct.calcsize("<I"))
-        if get_os() == "Windows":
-            timefunc = time.clock
-        else:
-            timefunc = time.time
-        try:
+        def sock_bcast():
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            for z in range(num_msgs):
-                packet = struct.pack("<I", z)
-                s.sendto(packet + data, ("255.255.255.255", BCASTPORT))
-                t1 = timefunc()
-                s.sendto(packet + data, (MCASTADDR, MCASTPORT))
-                t2 = timefunc()
-                curdelay = delay - (t2 - t1);
-                if curdelay > 0:
-                    time.sleep(delay)
-                if (z % 100) == 0:
-                    self.gui.show_progress(_("Sending message %d/%d") % (z, num_msgs))
-        except:
-            traceback.print_exc()
-            self.gui.show_progress(_("Error sending broadcast message: %s") % sys.exc_value)
+            return s
 
+        # agrupa os experimentos
+        if len(bandwidth) > 1:
+            timestamp_bandwidth_group = str(int(time.time()))
+            group_fd = open("results.%s.txt" % timestamp_bandwidth_group, "w")
+            print >>group_fd, _("Multiple bandwidth evaluations (%d - %d Kbps)\n%s Kbps\n") % (bandwidth[0], bandwidth[-1], str(bandwidth))
+            group_fd.close()
 
-        self.gui.show_progress(_("Sending Broadcast Bandwidth finish request"))
-        # Desconecta os clientes
-        for z in machines:
-            print "Enviando para %s" % z
-            # enviando mensagem para cliente para iniciar a captura
-            s = connect(z, LISTENPORT, timeout=3)
-            if not s:
-                print _("Erro conectando a %s!" % z)
-                self.gui.set_offline(z, _("Unable to connect to %s!") % z)
-            # envia a mensagem
+            # para evitar sobre-escrita dos arquivos
+            print _("Saving overall results to results.%s.txt") % timestamp_bandwidth_group
+            time.sleep(1)
+
+        bandwidth_group = []
+        for band in bandwidth:
+            timestamp_bandwidth = str(int(time.time()))
+            bandwidth_group.append(timestamp_bandwidth)
+
+            fd = open("results.%s.txt" % timestamp_bandwidth, "w")
+            print >>fd, _("Bandwidth evaluation (%s): %d msgs, %d bandwidth.\nClients: %s") % (type, num_msgs, band, ",".join(machines))
+            fd.close()
+
+            # avalia o tipo de experimento
+            if type == "multicast":
+                START_CMD = COMMAND_BANDWIDTH_MULTICAST_START
+                STOP_CMD = COMMAND_BANDWIDTH_MULTICAST_STOP
+                ADDR = MCASTADDR
+                PORT = MCASTPORT
+                SOCK_FUNC = sock_mcast
+                EXT = "mcast"
+            else:
+                START_CMD = COMMAND_BANDWIDTH_BROADCAST_START
+                STOP_CMD = COMMAND_BANDWIDTH_BROADCAST_STOP
+                ADDR = BCASTADDR
+                PORT = BCASTPORT
+                SOCK_FUNC = sock_bcast
+                EXT = "bcast"
+
+            # avalia o SO
+            if get_os() == "Windows":
+                timefunc = time.clock
+            else:
+                timefunc = time.time
+
+            print "Captura iniciada"
+            self.gui.multicast_started()
+            # Envia as mensagens
+            for z in machines:
+                self.gui.show_progress(_("Sending %s Bandwidth test request to %s") % (type, z))
+                print "Enviando para %s" % z
+                # enviando mensagem para cliente para iniciar a captura
+                s = connect(z, LISTENPORT, timeout=5)
+                if not s:
+                    print _("Erro conectando a %s!" % z)
+                    traceback.print_exc()
+                    # Marca a maquina como offline
+                    self.gui.set_offline(z)
+                # envia a mensagem
+                try:
+                    s.send(struct.pack("<b", START_CMD))
+                    s.close()
+                except:
+                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                    traceback.print_exc()
+                    # Marca a maquina como offline
+                    self.gui.set_offline(z)
+            # Agora faz o experimento
+            self.gui.show_progress(_("Starting %s experiment in 2..") % type)
+
+            # aguarda um tempo para os clientes se estabilizarem
+            time.sleep(1)
+            self.gui.show_progress(_("Starting %s experiment in 1..") % type)
+            time.sleep(1)
+
+            # TODO: calcular delays de acordo com o tempo de envio de pacote
+            if band > 0:
+                delay = 1 / (
+                                (
+                                    (band * 1024) / 8.0
+                                ) / DATAGRAM_SIZE
+                            )
+            else:
+                delay = 0
+            print "Delay between messages: %f" % delay
+            data = " " * (DATAGRAM_SIZE - struct.calcsize("<I"))
             try:
-                s.send(struct.pack("<b", COMMAND_BANDWIDTH_BROADCAST_STOP))
+                for z in range(num_msgs):
+                    packet = struct.pack("<I", z)
+                    s = SOCK_FUNC()
+                    t1 = timefunc()
+                    s.sendto(packet + data, (ADDR, PORT))
+                    t2 = timefunc()
+                    curdelay = delay - (t2 - t1);
+                    if curdelay > 0:
+                        time.sleep(delay)
+                    if (z % 100) == 0:
+                        self.gui.show_progress(_("Sending message (%d Kbps) %d/%d") % (band, z, num_msgs))
             except:
-                print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
-                self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
-            # agora vamos receber o arquivo
-            try:
-                size = struct.unpack("<I",
-                        (s.recv(struct.calcsize("<I")))
-                        )[0]
-                fd = open("results.%s.%s.bcast" % (timestamp_bandwidth, z), "wb")
-                print "Saving results to results.%s.%s.bcast" % (timestamp_bandwidth, z)
-                print >>fd, "# total msgs: %d, max bandwidth: %d kbps" % (num_msgs, bandwidth)
-                while size > 0:
-                    buf = s.recv(size)
-                    fd.write(buf)
-                    size -= len(buf)
-                print >>fd, "\n"
-                fd.close()
-            except:
-                print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
                 traceback.print_exc()
-                self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
-            finally:
-                s.close()
-        self.gui.broadcast_finished()
-        # Agora recupera os dados de todos
-        self.gui.show_progress(_("Finished broadcasting experiment"))
-        self.gui.analyze_mcast(timestamp_bandwidth, machines, type="Broadcast")
+                self.gui.show_progress(_("Error sending %s message: %s") % (type, sys.exc_value))
+
+
+            self.gui.show_progress(_("Sending %s Bandwidth finish request") % type)
+            # Desconecta os clientes
+            for z in machines:
+                print "Enviando para %s" % z
+                # enviando mensagem para cliente para iniciar a captura
+                s = connect(z, LISTENPORT, timeout=3)
+                if not s:
+                    print _("Erro conectando a %s!" % z)
+                    self.gui.set_offline(z, _("Unable to connect to %s!") % z)
+                # envia a mensagem
+                try:
+                    s.send(struct.pack("<b", STOP_CMD))
+                except:
+                    print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
+                    self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
+                # agora vamos receber o arquivo
+                try:
+                    size = struct.unpack("<I",
+                            (s.recv(struct.calcsize("<I")))
+                            )[0]
+                    fd = open("results.%s.%s.%s" % (timestamp_bandwidth, z, EXT), "wb")
+                    print "Saving results to results.%s.%s.%s" % (timestamp_bandwidth, z, EXT)
+                    print >>fd, "# total msgs: %d, max bandwidth: %d kbps" % (num_msgs, band)
+                    while size > 0:
+                        buf = s.recv(size)
+                        fd.write(buf)
+                        size -= len(buf)
+                    print >>fd, "\n"
+                    fd.close()
+                    s.close()
+                except:
+                    print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
+                    traceback.print_exc()
+                    self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
+            self.gui.multicast_finished()
+            # Agora recupera os dados de todos
+            if type == "multicast":
+                self.gui.analyze_mcast(timestamp_bandwidth, machines)
+            else:
+                self.gui.analyze_mcast(timestamp_bandwidth, machines, type="Broadcast")
+        # Termina o experimento
+        self.gui.show_progress(_("Finished %s experiment") % type)
+
+        # agrupa os experimentos
+        if len(bandwidth) > 1:
+            group_fd = open("results.%s.%s.group" % (timestamp_bandwidth_group, ADDR), "w")
+            print >>group_fd, "\n".join(bandwidth_group)
+            group_fd.close()
 
     def start_capture(self, machines, descr):
         """Inicia a captura"""
@@ -456,7 +396,7 @@ class TrafdumpRunner(Thread):
                 self.multicast(machines, num_msgs, bandwidth)
             elif name == "broadcast":
                 machines, num_msgs, bandwidth = parameters
-                self.broadcast(machines, num_msgs, bandwidth)
+                self.multicast(machines, num_msgs, bandwidth, type="broadcast")
             else:
                 print "Unknown experiment %s" % name
 # }}}
@@ -497,7 +437,7 @@ class TrafdumpGui:
         self.StopCapture.connect('clicked', self.stop_capture)
         self.BandwidthButton.connect('clicked', self.bandwidth)
         self.MulticastButton.connect('clicked', self.multicast)
-        self.BroadcastButton.connect('clicked', self.broadcast)
+        self.BroadcastButton.connect('clicked', self.multicast, "broadcast")
         self.AnalyzeButton.connect('clicked', self.analyze)
 
         # Configura o timer
@@ -588,15 +528,6 @@ class TrafdumpGui:
         # agora faz experimentos especificos
         timestamp = experiments[exp - 1]
 
-        # mostra o dialogo para escolher os clientes
-        dialog = gtk.Dialog(_("Select clients"), self.MainWindow, 0,
-                (gtk.STOCK_OK, gtk.RESPONSE_OK,
-                gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
-        dialog.vbox.add(gtk.Label(_("Select clients to process")))
-
-        combobox = gtk.combo_box_new_text()
-        combobox.append_text(_("All clients"))
-
         # process the files
         files = glob.glob("results.%s.*" % timestamp)
         res = clients_r.findall("\n".join(files))
@@ -611,19 +542,32 @@ class TrafdumpGui:
             if client in allclients:
                 continue
             allclients.append(client)
-            combobox.append_text(client)
 
-        combobox.set_active(0)
-        dialog.vbox.add(combobox)
+        client_selected = 0
+        if len(allclients) > 1:
+            # mostra o dialogo para escolher os clientes
+            dialog = gtk.Dialog(_("Select clients"), self.MainWindow, 0,
+                    (gtk.STOCK_OK, gtk.RESPONSE_OK,
+                    gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL))
+            dialog.vbox.add(gtk.Label(_("Select clients to process")))
 
-        dialog.show_all()
-        response = dialog.run()
-        if response == gtk.RESPONSE_OK:
-            dialog.destroy()
-            client_selected = combobox.get_active()
-        else:
-            dialog.destroy()
-            return
+            combobox = gtk.combo_box_new_text()
+            combobox.append_text(_("All clients"))
+
+            for client in allclients:
+                combobox.append_text(client)
+
+            combobox.set_active(0)
+            dialog.vbox.add(combobox)
+
+            dialog.show_all()
+            response = dialog.run()
+            if response == gtk.RESPONSE_OK:
+                dialog.destroy()
+                client_selected = combobox.get_active()
+            else:
+                dialog.destroy()
+                return
 
         if client_selected == 0:
             clients = allclients
@@ -742,6 +686,10 @@ class TrafdumpGui:
 
             losses[client] = (total_msgs, received_msgs, received_frac, maxbandwidth)
 
+        if not total_sent:
+            # No data was sent?
+            print "Error: no data was sent!"
+            return
         total_frac = float((total_recv * 100) / total_sent)
         realbandwidth /= len(clients)
         fig = figure()
@@ -762,7 +710,7 @@ class TrafdumpGui:
 
         # Generates graph
         ax = fig.add_subplot(111)
-        fig.suptitle(_("%s reception quality (%d%% average, %0.2f Kbps max)" % (type, total_frac, realbandwidth)))
+        fig.suptitle(_("%s reception quality (%d%% average, %0.2f/%d Kbps)" % (type, total_frac, realbandwidth, bandwidth)))
         ax.bar(range(len(messages)), messages)
         xticks(arange(len(xtitles)), xtitles)
         ylabel(_("Messages received (%)"))
@@ -792,7 +740,7 @@ class TrafdumpGui:
         toolbar = NavigationToolbar(canvas, win)
         vbox.pack_start(toolbar, False, False)
 
-        win.show_all()
+        gobject.idle_add(win.show_all)
 
         #if len(clients) == 1:
         #    filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
@@ -930,7 +878,7 @@ class TrafdumpGui:
         self.StopCapture.set_sensitive(False)
         gtk.gdk.threads_leave()
 
-    def multicast(self, widget):
+    def multicast(self, widget, type="multicast"):
         """Inicia o teste de multicast"""
         num_msgs = self.question(_("How many multicast messages to send?"), "1000")
         if not num_msgs:
@@ -940,15 +888,24 @@ class TrafdumpGui:
         except:
             return
 
-        bandwidth = self.question(_("Maximum bandwidth in Kbps (0 for no limit)?"), "0")
+        bandwidth = self.question(_("Maximum bandwidth in Kbps (0 for no limit)\nor\nBandwidth range (format: minimum bandwidth, maximum bandwidth, interval)"), "0")
         if not bandwidth:
             return
         try:
-            bandwidth = int(bandwidth)
+            try:
+                band_min, band_max, band_int = bandwidth.split(",", 3)
+                band_min = int(band_min.strip())
+                band_max = int(band_max.strip())
+                band_int = int(band_int.strip())
+                steps = (band_max - band_min) / band_int + 1
+                bandwidth = [band_min + (band_int * step) for step in range(steps)]
+            except:
+                bandwidth = [int(bandwidth)]
         except:
             return
 
-        self.MulticastButton.set_sensitive(False)
+        print bandwidth
+        print "Bandwidth to estimate: %s Kbps" % (bandwidth)
 
         machines = []
         for z in self.machines:
@@ -956,38 +913,19 @@ class TrafdumpGui:
             if img == self.machines[z].button.img_on:
                 machines.append(z)
 
-        self.service.experiments.put(("multicast", (machines, num_msgs, bandwidth)))
+        self.service.experiments.put((type, (machines, num_msgs, bandwidth)))
+
+    def multicast_started(self):
+        """Multicast experiment has finished"""
+        self.MulticastButton.set_sensitive(False)
 
     def multicast_finished(self):
         """Multicast experiment has finished"""
         self.MulticastButton.set_sensitive(True)
 
-    def broadcast(self, widget):
-        """Inicia o teste de broadcast"""
-        num_msgs = self.question(_("How many broadcast messages to send?"), "1000")
-        if not num_msgs:
-            return
-        try:
-            num_msgs = int(num_msgs)
-        except:
-            return
-
-        bandwidth = self.question(_("Maximum bandwidth in Kbps (0 for no limit)?"), "0")
-        if not bandwidth:
-            return
-        try:
-            bandwidth = int(bandwidth)
-        except:
-            return
+    def broadcast_started(self):
+        """Multicast experiment has finished"""
         self.BroadcastButton.set_sensitive(False)
-
-        machines = []
-        for z in self.machines:
-            img = self.machines[z].button.get_image()
-            if img == self.machines[z].button.img_on:
-                machines.append(z)
-
-        self.service.experiments.put(("broadcast", (machines, num_msgs, bandwidth)))
 
     def broadcast_finished(self):
         """Multicast experiment has finished"""
