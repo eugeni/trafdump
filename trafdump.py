@@ -904,7 +904,6 @@ class TrafdumpGui:
         except:
             return
 
-        print bandwidth
         print "Bandwidth to estimate: %s Kbps" % (bandwidth)
 
         machines = []
