@@ -252,7 +252,7 @@ class TrafdumpRunner(Thread):
                     if curdelay > 0:
                         time.sleep(delay)
                     if (z % 100) == 0:
-                        self.gui.show_progress(_("Sending message (%d Kbps) %d/%d") % (band, z, num_msgs))
+                        self.gui.show_progress(_("Sending data (%d Kbps): %d/%d") % (band, z, num_msgs))
             except:
                 traceback.print_exc()
                 self.gui.show_progress(_("Error sending %s message: %s") % (type, sys.exc_value))
