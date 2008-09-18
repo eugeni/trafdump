@@ -44,8 +44,30 @@ from config import *
 MACHINES_X = 8
 MACHINES_Y = 8
 
+# helper functions
+
 def printts(ts):
     return time.asctime(time.localtime(int(ts)))
+
+# regexps
+res_r = re.compile('results.(\d+).txt')
+clients_r = re.compile('results.\d+.(\d+\.\d+\.\d+\.\d+).(\w+)')
+
+def find_clients(timestamp):
+    """Finds clients for experiment"""
+    files = glob.glob("results.%s.*" % timestamp)
+    res = clients_r.findall("\n".join(files))
+    if not res:
+        print "No clients found!"
+    clients = []
+    exp = None
+    for client, type in res:
+        exp = type
+        if client in clients:
+            continue
+        clients.append(client)
+    return (exp, clients)
+
 
 # {{{ TrafdumpRunner
 class TrafdumpRunner(Thread):
@@ -474,23 +496,10 @@ class TrafdumpGui:
                 self.analyze_mcast(timestamp, clients, doplot=doplot)
             elif exp == "bcast":
                 self.analyze_mcast(timestamp, clients, type="Broadcast", doplot=doplot)
+            elif exp == "group":
+                self.analyze_group(timestamp, clients, doplot=doplot)
             else:
                 print "Unknown experiment %s" % exp
-
-        def find_clients(timestamp):
-            """Finds clients for experiment"""
-            files = glob.glob("results.%s.*" % timestamp)
-            res = clients_r.findall("\n".join(files))
-            if not res:
-                print "No clients found!"
-            clients = []
-            exp = None
-            for client, type in res:
-                exp = type
-                if client in clients:
-                    continue
-                clients.append(client)
-            return (exp, clients)
 
         # monta a lista de resultados
         dialog = gtk.Dialog(_("Select experiment"), self.MainWindow, 0,
@@ -499,10 +508,6 @@ class TrafdumpGui:
 
         combobox = gtk.combo_box_new_text()
         combobox.append_text(_("Batch-process all experiments"))
-
-        # regexps
-        res_r = re.compile('results.(\d+).txt')
-        clients_r = re.compile('results.\d+.(\d+\.\d+\.\d+\.\d+).(\w+)')
 
         results = glob.glob("results*txt")
         experiments = []
@@ -660,6 +665,66 @@ class TrafdumpGui:
         ax.bar(range(len(bandwidth)), bandwidth)
         xticks(arange(len(xtitles)), xtitles)
         ylabel(_("Bandwidth (MB/s)"))
+        ax.grid()
+        self.show_fig(fig)
+
+    def analyze_group(self, timestamp, clients, doplot=True):
+        """Analyzes group of multicast/broadcast experiments.
+        WARNING: this routing analyzes the .csv files, assuming they are already created.
+        This is faster than analyzing individual files (as performed by extract_band),
+        but it assumes that the files do exists."""
+        try:
+            experiments = [int(x) for x in open("results.%s.%s.group" % (timestamp, clients[0])).readlines() if len(x) > 1]
+        except:
+            print _("Unable to parse timestamp list for %s!") % timestamp
+            traceback.print_exc()
+            return
+
+        # TODO: check for mixed results
+        xlabels = []
+        sizes = []
+        values = []
+        rates = []
+        output = open("stat.%s.csv" % timestamp, "w")
+        print >>output, "Type, bandwidth, real bandwidth, quality"
+        for exp in experiments:
+            type, clients = find_clients(exp)
+            try:
+                data = open("stat.%s.csv" % exp).readlines()[1:3]
+                bandwidth = int(data[0].split(",")[1].strip())
+                clients = int(data[0].split(",")[3].strip())
+                rate = int(data[1].split(",")[3].strip())
+                real_bandwidth = float(data[1].split(",")[4].strip())
+                xlabels.append(bandwidth)
+                values.append(real_bandwidth)
+                sizes.append(bandwidth)
+                rates.append(rate)
+                print >>output, "%s, %d, %0.2f, %d" % (type, bandwidth, real_bandwidth, rate)
+            except:
+                print "Error parsing stat.%s.csv" % exp
+        output.close()
+        if not doplot:
+            return
+
+        # Bandwidth figure
+        fig = figure()
+        ax = fig.add_subplot(111)
+        fig.suptitle(_("Bandwidth evaluation (%s) from %d to %d Kbps") % (type, sizes[0], sizes[-1]))
+        ax.plot(range(len(sizes)), sizes, '-', label='Expected bandwidth')
+        ax.plot(range(len(values)), values, 'r-', label='Real bandwidth')
+        xticks(arange(len(xlabels)), xlabels)
+        ylabel(_("Bandwidth (Kbps)"))
+        ax.grid()
+        ax.legend()
+        self.show_fig(fig)
+
+        # Quality figure
+        fig = figure()
+        ax = fig.add_subplot(111)
+        fig.suptitle(_("Reception quality evaluation (%s) from %d to %d Kbps") % (type, sizes[0], sizes[-1]))
+        ax.bar(range(len(rates)), rates)
+        xticks(arange(len(xlabels)), xlabels)
+        ylabel(_("Bandwidth (Kbps)"))
         ax.grid()
         self.show_fig(fig)
 
