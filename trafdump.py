@@ -724,7 +724,7 @@ class TrafdumpGui:
         fig.suptitle(_("Reception quality evaluation (%s) from %d to %d Kbps") % (type, sizes[0], sizes[-1]))
         ax.bar(range(len(rates)), rates)
         xticks(arange(len(xlabels)), xlabels)
-        ylabel(_("Bandwidth (Kbps)"))
+        ylabel(_("Messages received (%)"))
         ax.grid()
         self.show_fig(fig)
 
