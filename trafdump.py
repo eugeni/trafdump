@@ -465,6 +465,33 @@ class TrafdumpGui:
 
     def analyze(self, widget):
         """Analyzes the results"""
+
+        def analyze_details(exp, timestamp, clients, doplot=True):
+            """Which function to use?"""
+            if exp == "band":
+                self.analyze_bandwidth(timestamp, clients, doplot=doplot)
+            elif exp == "mcast":
+                self.analyze_mcast(timestamp, clients, doplot=doplot)
+            elif exp == "bcast":
+                self.analyze_mcast(timestamp, clients, type="Broadcast", doplot=doplot)
+            else:
+                print "Unknown experiment %s" % exp
+
+        def find_clients(timestamp):
+            """Finds clients for experiment"""
+            files = glob.glob("results.%s.*" % timestamp)
+            res = clients_r.findall("\n".join(files))
+            if not res:
+                print "No clients found!"
+            clients = []
+            exp = None
+            for client, type in res:
+                exp = type
+                if client in clients:
+                    continue
+                clients.append(client)
+            return (exp, clients)
+
         # monta a lista de resultados
         dialog = gtk.Dialog(_("Select experiment"), self.MainWindow, 0,
                 (gtk.STOCK_OK, gtk.RESPONSE_OK,
@@ -499,49 +526,28 @@ class TrafdumpGui:
             dialog.destroy()
             return
 
+        # TODO: can be refactored..
+
         # processa todos os experimentos?
         if exp == 0:
             # faz todos
             for timestamp in experiments:
-                # faz todos os experimentos, um por um
-                files = glob.glob("results.%s.*" % timestamp)
-                res = clients_r.findall("\n".join(files))
-                if not res:
+                exp, clients = find_clients(timestamp)
+                if not exp:
+                    print _("No clients found for experimento %s") % timestamp
                     continue
-                clients = []
-                for client, type in res:
-                    exp = type
-                    if client in clients:
-                        continue
-                    clients.append(client)
-                # agora calcula os resultados
-                if exp == "band":
-                    self.analyze_bandwidth(timestamp, clients, doplot=False)
-                elif exp == "mcast":
-                    self.analyze_mcast(timestamp, clients, doplot=False)
-                elif exp == "bcast":
-                    self.analyze_mcast(timestamp, clients, type="Broadcast", doplot=False)
-                else:
-                    print "Unknown experiment %s" % exp
+                print _("Batch-analyzing %s (%s, %s)") % (timestamp, exp, str(clients))
+                analyze_details(exp, timestamp, clients, doplot=False)
             return
 
         # agora faz experimentos especificos
         timestamp = experiments[exp - 1]
 
-        # process the files
-        files = glob.glob("results.%s.*" % timestamp)
-        res = clients_r.findall("\n".join(files))
-        allclients = []
-        if not res:
+        exp, allclients = find_clients(timestamp)
+        if not exp:
             # no files found
             print "No clients found!"
             return
-        experiments = {}
-        for client, type in res:
-            exp = type
-            if client in allclients:
-                continue
-            allclients.append(client)
 
         client_selected = 0
         if len(allclients) > 1:
@@ -575,14 +581,8 @@ class TrafdumpGui:
             clients = [allclients[client_selected - 1]]
 
         # agora calcula os resultados
-        if exp == "band":
-            self.analyze_bandwidth(timestamp, clients)
-        elif exp == "mcast":
-            self.analyze_mcast(timestamp, clients)
-        elif exp == "bcast":
-            self.analyze_mcast(timestamp, clients, type="Broadcast")
-        else:
-            print "Unknown experiment %s" % exp
+        print _("Analyzing %s (%s, %s)") % (timestamp, exp, str(clients))
+        analyze_details(exp, timestamp, clients, doplot=True)
 
     def show_fig(self, fig):
         """Shows a pylab figure"""
