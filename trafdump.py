@@ -584,11 +584,39 @@ class TrafdumpGui:
         else:
             print "Unknown experiment %s" % exp
 
+    def show_fig(self, fig):
+        """Shows a pylab figure"""
+        win = gtk.Window()
+        win.connect("destroy", lambda w: w.destroy())
+        win.set_default_size(640, 480)
+        win.set_title(_("Results"))
+
+        vbox = gtk.VBox()
+        win.add(vbox)
+
+        sw = gtk.ScrolledWindow()
+        vbox.add(sw)
+
+        # A scrolled window border goes outside the scrollbars and viewport
+        sw.set_border_width (10)
+        # policy: ALWAYS, AUTOMATIC, NEVER
+        sw.set_policy (hscrollbar_policy=gtk.POLICY_AUTOMATIC,
+                       vscrollbar_policy=gtk.POLICY_AUTOMATIC)
+
+        canvas = FigureCanvas(fig)
+#        canvas.set_size_request(600 + (10 * len(clients)), 400)
+        sw.add_with_viewport(canvas)
+        toolbar = NavigationToolbar(canvas, win)
+        vbox.pack_start(toolbar, False, False)
+
+        gobject.idle_add(win.show_all)
+
     def analyze_bandwidth(self, timestamp, clients, doplot=True):
         """Avalia a banda dos clientes"""
         xtitles = []
         uploads = []
         downloads = []
+        bandwidth = []
         for client in clients:
             data = open("results.%s.%s.band" % (timestamp, client)).readlines()
             upload = float(data[1].split(" ")[3]) / 1000000
@@ -596,45 +624,44 @@ class TrafdumpGui:
             uploads.append(upload)
             downloads.append(download)
 
-        if len(clients) > 1:
-            fig = figure(figsize=(len(clients) * 3, 12))
-            output = open("stat.%s.csv" % timestamp, "w")
-            print >>output, _("Client, upload, download")
-            meanupload = reduce(lambda x, y: x + y, uploads) / len(uploads)
-            meandownload = reduce(lambda x, y: x + y, downloads) / len(downloads)
-            print >>output, _("All clients, %f, %f") % (meanupload, meandownload)
-            for z in range(len(clients)):
-                client = clients[z]
-                upload = uploads[z]
-                download = downloads[z]
-                print >>output, "%s, %f, %f" % (client, upload, download)
+            # grafico
+            xtitles.append(_("%s\nUp") % client)
+            xtitles.append(_("\nDown"))
+            bandwidth.append(upload)
+            bandwidth.append(download)
 
-        else:
-            fig = figure()
-
-        # TODO: save CSV
+        # generates CSV file
+        output = open("stat.%s.csv" % timestamp, "w")
+        print >>output, _("Client, upload, download")
+        meanupload = reduce(lambda x, y: x + y, uploads) / len(uploads)
+        meandownload = reduce(lambda x, y: x + y, downloads) / len(downloads)
+        print >>output, _("All clients, %f, %f") % (meanupload, meandownload)
+        for z in range(len(clients)):
+            client = clients[z]
+            upload = uploads[z]
+            download = downloads[z]
+            print >>output, "%s, %f, %f" % (client, upload, download)
+        output.close()
 
         if not doplot:
             return
 
-        #if len(clients) == 1:
-        #    title(_("Bandwidth evaluation for %s" % clients[0]))
-        #else:
-        #    title(_("Bandwidth evaluation for %d clients" % len(clients)))
-        #bar(range(len(uploads)), uploads)
-        #xticks(arange(len(clients)), clients)
-        #ylabel(_("Bandwidth (MB/s)"))
-        #grid()
-        #if len(clients) == 1:
-        #    filename = "graphs.%s.%s.png" % (timestamp, clients[0])
-        #else:
-        #    filename = "graphs.%s.png" % (timestamp)
-        #savefig(filename, format="png")
-        #print "Saving results to %s" % filename
-        #if get_os() == "Linux":
-        #    os.system("xdg-open %s &" % filename)
-        #else:
-        #    os.system("start %s" % filename)
+        # generates figures
+        if len(clients) > 1:
+            fig = figure(figsize=(len(clients) * 3, 12))
+        else:
+            fig = figure()
+
+        ax = fig.add_subplot(111)
+        if len(clients) == 1:
+            fig.suptitle(_("Bandwidth evaluation for %s" % clients[0]))
+        else:
+            fig.suptitle(_("Bandwidth evaluation for %d clients" % len(clients)))
+        ax.bar(range(len(bandwidth)), bandwidth)
+        xticks(arange(len(xtitles)), xtitles)
+        ylabel(_("Bandwidth (MB/s)"))
+        ax.grid()
+        self.show_fig(fig)
 
     def analyze_mcast(self, timestamp, clients, type="Multicast", doplot=True):
         """Avalia a banda dos clientes"""
@@ -692,22 +719,22 @@ class TrafdumpGui:
             return
         total_frac = float((total_recv * 100) / total_sent)
         realbandwidth /= len(clients)
-        fig = figure()
-        if len(clients) > 1:
-            # cria o arquito de log de tudo
-            output = open("stat.%s.csv" % timestamp, "w")
-            print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
-            print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
-            print >>output, "%s, %d, %d, %d, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
-            for client in losses:
-                sent, recv, frac, maxbandwidth = losses[client]
-                print >>output, "%s, %d, %d, %d, %0.2f" % (client, sent, recv, frac, maxbandwidth)
-            output.close()
+
+        # creates CSV
+        output = open("stat.%s.csv" % timestamp, "w")
+        print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
+        print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
+        print >>output, "%s, %d, %d, %d, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
+        for client in losses:
+            sent, recv, frac, maxbandwidth = losses[client]
+            print >>output, "%s, %d, %d, %d, %0.2f" % (client, sent, recv, frac, maxbandwidth)
+        output.close()
 
         # TODO: show graphs instead of saving!!!
         if not doplot:
             return
 
+        fig = figure()
         # Generates graph
         ax = fig.add_subplot(111)
         fig.suptitle(_("%s reception quality (%d%% average, %0.2f/%d Kbps)" % (type, total_frac, realbandwidth, bandwidth)))
@@ -716,31 +743,7 @@ class TrafdumpGui:
         ylabel(_("Messages received (%)"))
         ax.grid()
 
-        # mostra a figura
-        win = gtk.Window()
-        win.connect("destroy", lambda w: w.destroy())
-        win.set_default_size(640, 480)
-        win.set_title(_("Results"))
-
-        vbox = gtk.VBox()
-        win.add(vbox)
-
-        sw = gtk.ScrolledWindow()
-        vbox.add(sw)
-
-        # A scrolled window border goes outside the scrollbars and viewport
-        sw.set_border_width (10)
-        # policy: ALWAYS, AUTOMATIC, NEVER
-        sw.set_policy (hscrollbar_policy=gtk.POLICY_AUTOMATIC,
-                       vscrollbar_policy=gtk.POLICY_AUTOMATIC)
-
-        canvas = FigureCanvas(fig)
-#        canvas.set_size_request(600 + (10 * len(clients)), 400)
-        sw.add_with_viewport(canvas)
-        toolbar = NavigationToolbar(canvas, win)
-        vbox.pack_start(toolbar, False, False)
-
-        gobject.idle_add(win.show_all)
+        self.show_fig(fig)
 
         #if len(clients) == 1:
         #    filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
