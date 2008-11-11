@@ -29,3 +29,4 @@ Processar os dados:
 - Mostrar status (numero de maquinas, AP, essid..)
 - Aumentar numero de retries antes de dar exception e tirar a maquina
 - Periodic ping to see if clients are alive
+- Scroll para muitos clientes
