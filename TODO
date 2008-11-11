@@ -21,3 +21,11 @@ Processar os dados:
    - Transfencia TCP por N minutos (?)
  - Marcar clientes que falharam durante o teste (ou na hora de mostrar?)
  - Instalar glib2 no windows.
+-------------------------------------------------
+- Mostrador visual do ultimo(s) teste
+- Criar "Quick Benchmark" e "Complete Benchmark"
+- Separar resultados em diretorios diferentes
+- Gerar pdf/html de todos os resultados
+- Mostrar status (numero de maquinas, AP, essid..)
+- Aumentar numero de retries antes de dar exception e tirar a maquina
+- Periodic ping to see if clients are alive

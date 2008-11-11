@@ -78,9 +78,9 @@ class trafdump:
         self.IfacesBox.add_attribute(cell, 'text', 0)
         self.IfacesBox.append_text(_("Network interface"))
         # Obtem a lista de interfaces disponiveis
-        global ifaces
-        for z in ifaces.keys():
-            self.IfacesBox.append_text(z)
+        self.ifaces = Queue.Queue()
+        gobject.timeout_add(1000, self.find_ifaces)
+        iface_finder = IfaceFinder(self)
         # acha a interface mais adequada
         # for z in range(len(self.ifaces)):
         #     iface = self.ifaces.keys()[z].strip()
@@ -99,6 +99,25 @@ class trafdump:
         self.bcast.start()
         self.log( _("Starting listening service.."))
         self.client.start()
+        self.log(_("Looking for Wireshark interfaces.."))
+        iface_finder.start()
+
+    def find_ifaces(self):
+        """Checks if there is any new wireshark interfaces"""
+        if self.ifaces.empty():
+            gobject.timeout_add(1000, self.find_ifaces)
+            return
+        # Something found
+        ifaces = self.ifaces.get()
+        if len(ifaces) < 1:
+            # Wireshark probably not installed
+            self.IfacesBox.set_sensitive(False)
+            self.log(_("No wireshark network interface found!"))
+            return
+        self.log(_("%d wireshark capturing interfaces configured!") % len(ifaces))
+        gui.log(_("Please select capturing interface to use Wireshark functionalty!!"))
+        for z in ifaces.keys():
+            self.IfacesBox.append_text(z)
 
     def network_selected(self, combobox):
         """A network interface was selected"""
@@ -145,7 +164,7 @@ class trafdump:
         """Logs a string"""
         #gtk.gdk.threads_enter()
         buffer = self.textview1.get_buffer()
-        iter = buffer.get_iter_at_offset(0)
+        iter = buffer.get_end_iter()
         print text
         buffer.insert(iter, "%s: %s\n" % (time.asctime(), text))
         #gtk.gdk.threads_leave()
@@ -242,6 +261,18 @@ class McastListener(Thread):
                 print "Exception!"
                 traceback.print_exc()
 # }}}
+
+# {{{ IfaceFinder
+class IfaceFinder(Thread):
+    """Wireshark interface finder. Separated into a separate thread to improve startup time"""
+    def __init__(self, gui):
+        Thread.__init__(self)
+        self.gui = gui
+
+    def run(self):
+        """Locates wireshark interfaces"""
+        ifaces = list_ifaces()
+        self.gui.ifaces.put(ifaces)
 
 # {{{ BcastListener
 class BcastListener(Thread):
@@ -458,14 +489,12 @@ if __name__ == "__main__":
     # configura o timeout padrao para sockets
     socket.setdefaulttimeout(5)
     # Atualizando a lista de interfaces
-    ifaces = list_ifaces()
     gtk.gdk.threads_init()
 
     print _("Starting GUI..")
     gui = trafdump("iface/client.glade")
     try:
         gtk.gdk.threads_enter()
-        gui.log(_("\n\nIMPORTANT!!\nPlease select capturing interface to start the benchmark!!\n\n"))
         gtk.main()
         gtk.gdk.threads_leave()
     except:

@@ -461,6 +461,8 @@ class TrafdumpGui:
         self.MulticastButton.connect('clicked', self.multicast)
         self.BroadcastButton.connect('clicked', self.multicast, "broadcast")
         self.AnalyzeButton.connect('clicked', self.analyze)
+        self.QuickTest.connect('clicked', self.quick_test)
+        self.FullTest.connect('clicked', self.full_test)
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
@@ -484,6 +486,16 @@ class TrafdumpGui:
     def set_service(self, service):
         """Determines the active benchmarking service"""
         self.service = service
+
+    def quick_test(self, widget):
+        """Runs the quick test"""
+        print "Quick test"
+        self.toggle_widgets(False)
+
+    def full_test(self, widget):
+        """Runs the full test"""
+        print "Full test"
+        self.toggle_widgets(True)
 
     def analyze(self, widget):
         """Analyzes the results"""
@@ -945,6 +957,14 @@ class TrafdumpGui:
         self.StartCapture.set_sensitive(True)
         self.StopCapture.set_sensitive(False)
         gtk.gdk.threads_leave()
+
+    def toggle_widgets(self, value):
+        """Disables the interface actions"""
+        for widget in [self.BandwidthButton,
+                        self.MulticastButton,
+                        self.BroadcastButton,
+                        self.BandwidthButton]:
+            widget.set_sensitive(value)
 
     def multicast(self, widget, type="multicast"):
         """Inicia o teste de multicast"""
