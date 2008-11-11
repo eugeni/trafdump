@@ -41,8 +41,10 @@ __builtin__._ = gettext.gettext
 
 from config import *
 
-MACHINES_X = 8
-MACHINES_Y = 8
+MACHINES_X = 7
+MACHINES_Y = 37
+STEP_X = 80
+STEP_Y = 65
 
 # helper functions
 
@@ -870,7 +872,11 @@ class TrafdumpGui:
             for x in range(0, MACHINES_X):
                 if not self.machine_layout[x][y]:
                     self.machine_layout[x][y] = machine
-                    self.MachineLayout.put(machine, x * 70, y * 65)
+                    self.MachineLayout.put(machine, x * STEP_X, y * STEP_Y)
+                    # verify scroll size
+                    width, height = self.MachineLayout.get_size()
+                    if height < (y+1) * STEP_Y:
+                        self.MachineLayout.set_size(width, (y+1) * STEP_Y)
                     machine.machine_x = x
                     machine.machine_y = y
                     return
