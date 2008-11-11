@@ -413,45 +413,6 @@ class TrafdumpRunner(Thread):
         ylabel(_("Messages received (%)"))
         ax.grid()
         savefig("%s/results.%s.png" % (dirname, band), format="png")
-        return
-
-        #if len(clients) == 1:
-        #    filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
-        #else:
-        #    filename = "graphs.%s.loss.png" % (timestamp)
-        #savefig(filename, format="png")
-        #print "Saving results to %s" % filename
-        #if get_os() == "Linux":
-        #    os.system("xdg-open %s &" % filename)
-        #else:
-        #    os.system("start %s" % filename)
-
-        # Do we need latency here??
-        return
-
-        #fig = figure()
-        #ylabel(_("Message latency (s)"))
-        #xlabel(_("Execution timeline"))
-        ## agora faz o grafico da banda
-        #for client in timelines:
-        #    title(_("%s message delays") % type)
-        #    ids, delays = timelines[client]
-        #    # com legenda nao cabe..
-        #    #plot(ids, delays, label=client)
-        #    plot(ids, delays)
-        #grid()
-        ##legend()
-
-        #if len(clients) == 1:
-        #    filename = "graphs.%s.%s.delays.png" % (timestamp, clients[0])
-        #else:
-        #    filename = "graphs.%s.delays.png" % (timestamp)
-        #savefig(filename, format="png")
-        #print "Saving results to %s" % filename
-        #if get_os() == "Linux":
-        #    os.system("xdg-open %s &" % filename)
-        #else:
-        #    os.system("start %s" % filename)
 
     def analyze_group(self, dirname, bandwidth, type):
         """Analyzes group of multicast/broadcast experiments.
