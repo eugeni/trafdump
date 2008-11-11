@@ -92,15 +92,8 @@ class TrafdumpRunner(Thread):
         # experiments queue
         self.experiments = Queue.Queue()
 
-    def bandwidth(self, comments, machines):
+    def bandwidth(self, dirname, machines):
         """Inicia a captura"""
-
-        timestamp_bandwidth = str(int(time.time()))
-
-        fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-        fd.write(_("TCP Bandwidth evaluation experiment.\nClients: %s") % ",".join(machines))
-        fd.close()
-
         print "Captura iniciada"
         for z in machines:
             print "Enviando para %s" % z
@@ -148,8 +141,8 @@ class TrafdumpRunner(Thread):
                 time_down = t4 - t3
                 bandwidth_down = float(BANDWIDTH_BUFSIZE / time_down)
                 print "Download bandwidth: %f Bytes/sec in %f sec, %f MB/sec" % (bandwidth_down, time_down, (bandwidth_down / 1000000))
-                print "Saving results to results.%s.%s.band" % (timestamp_bandwidth, z)
-                fd = open("results.%s.%s.band" % (timestamp_bandwidth, z), "w")
+                print "Saving results to %s/%s.band" % (dirname, z)
+                fd = open("%s/%s.band" % (dirname, z), "w")
                 fd.write("Buffer size: %d\nUpload: %f sec, %f bytes/sec\nDownload: %f sec, %f bytes/sec\n" % (BANDWIDTH_BUFSIZE, time_up, bandwidth_up, time_down, bandwidth_down))
                 fd.close()
             except:
@@ -158,32 +151,70 @@ class TrafdumpRunner(Thread):
                 # Marca a maquina como offline
                 self.gui.set_offline(z)
             self.gui.show_progress(_("TCP Bandwidth test for %s finished") % z)
+        # Agora analisa os resultados
+        self.gui.show_progress(_("Analyzing overall TCP bandwidth.."))
+        self.analyze_bandwidth(dirname, machines)
         self.gui.finish_bandwidth()
-        # monta os graficos
-        self.gui.analyze_bandwidth(timestamp_bandwidth, machines)
 
-    def multicast(self, comments, machines, num_msgs, bandwidth, type="multicast"):
+    def analyze_bandwidth(self, dirname, clients):
+        """Avalia a banda dos clientes"""
+        xtitles = []
+        uploads = []
+        downloads = []
+        bandwidth = []
+        for client in clients:
+            lastip = client.split(".")[-1]
+            data = open("%s/%s.band" % (dirname, client)).readlines()
+            upload = float(data[1].split(" ")[3]) / 1000000
+            download = float(data[2].split(" ")[3]) / 1000000
+            uploads.append(upload)
+            downloads.append(download)
+
+            # grafico
+            xtitles.append(_("%s\nUp") % lastip)
+            xtitles.append(_("%s\nDown") % lastip)
+            bandwidth.append(upload)
+            bandwidth.append(download)
+
+        # generates CSV file
+        output = open("%s/results.csv" % dirname, "w")
+        print >>output, _("Client, upload, download")
+        if uploads:
+            meanupload = reduce(lambda x, y: x + y, uploads) / len(uploads)
+        else:
+            meanupload = 0
+        if downloads:
+            meandownload = reduce(lambda x, y: x + y, downloads) / len(downloads)
+        else:
+            meandownload = 0
+        print >>output, _("All clients, %f, %f") % (meanupload, meandownload)
+        for z in range(len(clients)):
+            client = clients[z]
+            upload = uploads[z]
+            download = downloads[z]
+            print >>output, "%s, %f, %f" % (client, upload, download)
+        output.close()
+
+        # generates figures
+        if len(clients) > 1:
+            fig = figure(figsize=(len(clients) * 3, 12))
+        else:
+            fig = figure()
+
+        ax = fig.add_subplot(111)
+        if len(clients) == 1:
+            fig.suptitle(_("Bandwidth evaluation for %s" % clients[0]))
+        else:
+            fig.suptitle(_("Bandwidth evaluation for %d clients" % len(clients)))
+        ax.bar(range(len(bandwidth)), bandwidth)
+        xticks(arange(len(xtitles)), xtitles)
+        ylabel(_("Bandwidth (MB/s)"))
+        ax.grid()
+        savefig("%s/results.png" % dirname, format="png")
+
+    def multicast(self, dirname, machines, num_msgs, bandwidth, type="multicast"):
         """Inicia a captura"""
-        # agrupa os experimentos
-        if len(bandwidth) > 1:
-            timestamp_bandwidth_group = str(int(time.time()))
-            group_fd = open("results.%s.txt" % timestamp_bandwidth_group, "w")
-            print >>group_fd, _("Multiple bandwidth evaluations (%d - %d Kbps)\n%s Kbps\n") % (bandwidth[0], bandwidth[-1], str(bandwidth))
-            group_fd.close()
-
-            # para evitar sobre-escrita dos arquivos
-            print _("Saving overall results to results.%s.txt") % timestamp_bandwidth_group
-            time.sleep(1)
-
-        bandwidth_group = []
         for band in bandwidth:
-            timestamp_bandwidth = str(int(time.time()))
-            bandwidth_group.append(timestamp_bandwidth)
-
-            fd = open("results.%s.txt" % timestamp_bandwidth, "w")
-            print >>fd, _("Bandwidth evaluation (%s): %d msgs, %d bandwidth.\nClients: %s") % (type, num_msgs, band, ",".join(machines))
-            fd.close()
-
             # avalia o tipo de experimento
             if type == "multicast":
                 START_CMD = COMMAND_BANDWIDTH_MULTICAST_START
@@ -278,8 +309,8 @@ class TrafdumpRunner(Thread):
                     size = struct.unpack("<I",
                             (s.recv(struct.calcsize("<I")))
                             )[0]
-                    fd = open("results.%s.%s.%s" % (timestamp_bandwidth, z, EXT), "wb")
-                    print "Saving results to results.%s.%s.%s" % (timestamp_bandwidth, z, EXT)
+                    fd = open("%s/%s.%s.%s" % (dirname, band, z, EXT), "wb")
+                    print "Saving results to %s/%s.%s.%s" % (dirname, band, z, EXT)
                     print >>fd, "# total msgs: %d, max bandwidth: %d kbps" % (num_msgs, band)
                     while size > 0:
                         buf = s.recv(size)
@@ -292,29 +323,209 @@ class TrafdumpRunner(Thread):
                     print _("Erro recebendo arquivo de %s: %s" % (z, sys.exc_value))
                     traceback.print_exc()
                     self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
+            self.analyze_mcast(dirname, band, machines, type)
             self.gui.multicast_finished()
             # Agora recupera os dados de todos
-            if type == "multicast":
-                self.gui.analyze_mcast(timestamp_bandwidth, machines)
-            else:
-                self.gui.analyze_mcast(timestamp_bandwidth, machines, type="Broadcast")
+            # TODO: analisar todos
+            #if type == "multicast":
+            #    self.gui.analyze_mcast(dirname, machines)
+            #else:
+            #    self.gui.analyze_mcast(dirname, machines, type="Broadcast")
         # Termina o experimento
+        self.gui.show_progress(_("Evaluating %s results..") % type)
+        self.analyze_group(dirname, bandwidth, type)
         self.gui.show_progress(_("Finished %s experiment") % type)
 
-        # agrupa os experimentos
-        if len(bandwidth) > 1:
-            group_fd = open("results.%s.%s.group" % (timestamp_bandwidth_group, ADDR), "w")
-            print >>group_fd, "\n".join(bandwidth_group)
-            group_fd.close()
+    def analyze_mcast(self, dirname, band, clients, type="Multicast", doplot=True):
+        """Avalia a banda dos clientes"""
+        xtitles = []
+        messages = []
+        timelines = {}
+        # para fazer as medias
+        losses = {}
+        total_sent = 0
+        total_recv = 0
+        bandwidth=0
+        realbandwidth=0
 
-    def start_capture(self, descr, machines):
+        if len(clients) < 1:
+            return
+        for client in clients:
+            if type == "multicast":
+                ext = "mcast"
+            else:
+                ext = "bcast"
+            try:
+                data = open("%s/%s.%s.%s" % (dirname, band, client, ext)).readlines()
+            except:
+                print "Unable to open file for %s" % client
+                traceback.print_exc()
+                continue
+            total_msgs = int(data[0].split(" ")[3].replace("," ,""))
+            bandwidth = int(data[0].split(" ")[6])
+            received_msgs = int(data[1].split(" ")[3])
+            received_frac = float((received_msgs * 100) / total_msgs)
+
+            # atualiza a contagem global
+            total_sent += total_msgs
+            total_recv += received_msgs
+
+            messages.append(received_frac)
+            xtitles.append("%s\n%d sent, %d recv" % (client, total_msgs, received_msgs))
+
+            ids = []
+            delays = [float(x.split(" ")[1]) for x in data[2:] if len(x) > 1]
+            timelines[client] = (ids, delays)
+
+            if delays:
+                meandelay = reduce(lambda x, y: x+y, delays) / len(delays)
+            else:
+                meandelay = 1
+            maxbandwidth = ((1/meandelay) * 8 * 1450) / 1000 # 1024 - kibps
+
+            realbandwidth += maxbandwidth
+
+            losses[client] = (total_msgs, received_msgs, received_frac, maxbandwidth)
+
+        if not total_sent:
+            # No data was sent?
+            print "Error: no data was sent!"
+            return
+        total_frac = float((total_recv * 100) / total_sent)
+        realbandwidth /= len(clients)
+
+        # creates CSV
+        output = open("%s/results.%s.csv" % (dirname, band), "w")
+        print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
+        print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
+        print >>output, "%s, %d, %d, %d, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
+        for client in losses:
+            sent, recv, frac, maxbandwidth = losses[client]
+            print >>output, "%s, %d, %d, %d, %0.2f" % (client, sent, recv, frac, maxbandwidth)
+        output.close()
+
+        fig = figure()
+        # Generates graph
+        ax = fig.add_subplot(111)
+        fig.suptitle(_("%s reception quality (%d%% average, %0.2f/%d Kbps)" % (type, total_frac, realbandwidth, bandwidth)))
+        ax.bar(range(len(messages)), messages)
+        xticks(arange(len(xtitles)), xtitles)
+        ylabel(_("Messages received (%)"))
+        ax.grid()
+        savefig("%s/results.%s.png" % (dirname, band), format="png")
+        return
+
+        #if len(clients) == 1:
+        #    filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
+        #else:
+        #    filename = "graphs.%s.loss.png" % (timestamp)
+        #savefig(filename, format="png")
+        #print "Saving results to %s" % filename
+        #if get_os() == "Linux":
+        #    os.system("xdg-open %s &" % filename)
+        #else:
+        #    os.system("start %s" % filename)
+
+        # Do we need latency here??
+        return
+
+        #fig = figure()
+        #ylabel(_("Message latency (s)"))
+        #xlabel(_("Execution timeline"))
+        ## agora faz o grafico da banda
+        #for client in timelines:
+        #    title(_("%s message delays") % type)
+        #    ids, delays = timelines[client]
+        #    # com legenda nao cabe..
+        #    #plot(ids, delays, label=client)
+        #    plot(ids, delays)
+        #grid()
+        ##legend()
+
+        #if len(clients) == 1:
+        #    filename = "graphs.%s.%s.delays.png" % (timestamp, clients[0])
+        #else:
+        #    filename = "graphs.%s.delays.png" % (timestamp)
+        #savefig(filename, format="png")
+        #print "Saving results to %s" % filename
+        #if get_os() == "Linux":
+        #    os.system("xdg-open %s &" % filename)
+        #else:
+        #    os.system("start %s" % filename)
+
+    def analyze_group(self, dirname, bandwidth, type):
+        """Analyzes group of multicast/broadcast experiments.
+        WARNING: this routing analyzes the .csv files, assuming they are already created.
+        This is faster than analyzing individual files (as performed by extract_band),
+        but it assumes that the files do exists."""
+        # Only makes sense if we have more than one experiment
+        if len(bandwidth) < 2:
+            return
+
+        try:
+            experiments = ["%s/results.%s.csv" % (dirname, z) for z in bandwidth]
+        except:
+            print _("Unable to parse timestamp list for %s!") % timestamp
+            traceback.print_exc()
+            return
+
+        # TODO: check for mixed results
+        xlabels = []
+        sizes = []
+        values = []
+        rates = []
+        output = open("%s/results.csv" % dirname, "w")
+        print >>output, "Type, bandwidth, real bandwidth, quality"
+        print experiments
+        for exp in experiments:
+            try:
+                data = open(exp).readlines()[1:3]
+                bandwidth = int(data[0].split(",")[1].strip())
+                clients = int(data[0].split(",")[3].strip())
+                rate = int(data[1].split(",")[3].strip())
+                real_bandwidth = float(data[1].split(",")[4].strip())
+                xlabels.append(bandwidth)
+                values.append(real_bandwidth)
+                sizes.append(bandwidth)
+                rates.append(rate)
+                print >>output, "%s, %d, %0.2f, %d" % (type, bandwidth, real_bandwidth, rate)
+            except:
+                print "Error parsing stat.%s.csv" % exp
+                traceback.print_exc()
+        output.close()
+
+        # Bandwidth figure
+        fig = figure()
+        ax = fig.add_subplot(111)
+        print sizes
+        fig.suptitle(_("Bandwidth evaluation (%s) from %d to %d Kbps") % (type, sizes[0], sizes[-1]))
+        ax.plot(range(len(sizes)), sizes, '-', label='Expected bandwidth')
+        ax.plot(range(len(values)), values, 'r-', label='Real bandwidth')
+        xticks(arange(len(xlabels)), xlabels)
+        ylabel(_("Bandwidth (Kbps)"))
+        ax.grid()
+        ax.legend()
+        savefig("%s/bandwidth.png" % dirname, format="png")
+
+        # Quality figure
+        fig = figure()
+        ax = fig.add_subplot(111)
+        fig.suptitle(_("Reception quality evaluation (%s) from %d to %d Kbps") % (type, sizes[0], sizes[-1]))
+        ax.bar(range(len(rates)), rates)
+        xticks(arange(len(xlabels)), xlabels)
+        ylabel(_("Messages received (%)"))
+        ax.grid()
+        savefig("%s/quality.png" % dirname, format="png")
+
+
+    def start_capture(self, dirname, machines):
         """Inicia a captura"""
 
         # atualiza o timestamp do experimento
-        self.curtimestamp = str(int(time.time()))
+        self.capturedir = dirname
 
-        fd = open("results.%s.txt" % self.curtimestamp, "w")
-        fd.write("%s\n" % descr)
+        fd = open("dirname/results.txt" % dirname, "w")
+        fd.write("%s\n" % dirname)
         fd.close()
 
         for z in machines:
@@ -328,8 +539,7 @@ class TrafdumpRunner(Thread):
             try:
                 s.send(struct.pack("<b", COMMAND_START_CAPTURE))
                 # envia o timestamp do experimento e a descricao
-                print self.curtimestamp
-                s.send(struct.pack("10s32s", self.curtimestamp, descr))
+                s.send(struct.pack("10s32s", dirname, dirname))
             except:
                 print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
                 self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
@@ -360,7 +570,7 @@ class TrafdumpRunner(Thread):
                 print size
                 if size > 0:
                     print "Recebendo arquivo de %d bytes de %s" % (size, z)
-                fd = open("results.%s.%s.pcap" % (self.curtimestamp, z), "wb")
+                fd = open("%s/%s.pcap" % (self.capturedir, z), "wb")
                 while size > 0:
                     buf = s.recv(size)
                     fd.write(buf)
@@ -603,238 +813,6 @@ class TrafdumpGui:
 
         gobject.idle_add(win.show_all)
 
-    def analyze_bandwidth(self, timestamp, clients, doplot=True):
-        """Avalia a banda dos clientes"""
-        xtitles = []
-        uploads = []
-        downloads = []
-        bandwidth = []
-        for client in clients:
-            data = open("results.%s.%s.band" % (timestamp, client)).readlines()
-            upload = float(data[1].split(" ")[3]) / 1000000
-            download = float(data[2].split(" ")[3]) / 1000000
-            uploads.append(upload)
-            downloads.append(download)
-
-            # grafico
-            xtitles.append(_("%s\nUp") % client)
-            xtitles.append(_("\nDown"))
-            bandwidth.append(upload)
-            bandwidth.append(download)
-
-        # generates CSV file
-        output = open("stat.%s.csv" % timestamp, "w")
-        print >>output, _("Client, upload, download")
-        meanupload = reduce(lambda x, y: x + y, uploads) / len(uploads)
-        meandownload = reduce(lambda x, y: x + y, downloads) / len(downloads)
-        print >>output, _("All clients, %f, %f") % (meanupload, meandownload)
-        for z in range(len(clients)):
-            client = clients[z]
-            upload = uploads[z]
-            download = downloads[z]
-            print >>output, "%s, %f, %f" % (client, upload, download)
-        output.close()
-
-        if not doplot:
-            return
-
-        # generates figures
-        if len(clients) > 1:
-            fig = figure(figsize=(len(clients) * 3, 12))
-        else:
-            fig = figure()
-
-        ax = fig.add_subplot(111)
-        if len(clients) == 1:
-            fig.suptitle(_("Bandwidth evaluation for %s" % clients[0]))
-        else:
-            fig.suptitle(_("Bandwidth evaluation for %d clients" % len(clients)))
-        ax.bar(range(len(bandwidth)), bandwidth)
-        xticks(arange(len(xtitles)), xtitles)
-        ylabel(_("Bandwidth (MB/s)"))
-        ax.grid()
-        self.show_fig(fig)
-
-    def analyze_group(self, timestamp, clients, doplot=True):
-        """Analyzes group of multicast/broadcast experiments.
-        WARNING: this routing analyzes the .csv files, assuming they are already created.
-        This is faster than analyzing individual files (as performed by extract_band),
-        but it assumes that the files do exists."""
-        try:
-            experiments = [int(x) for x in open("results.%s.%s.group" % (timestamp, clients[0])).readlines() if len(x) > 1]
-        except:
-            print _("Unable to parse timestamp list for %s!") % timestamp
-            traceback.print_exc()
-            return
-
-        # TODO: check for mixed results
-        xlabels = []
-        sizes = []
-        values = []
-        rates = []
-        output = open("stat.%s.csv" % timestamp, "w")
-        print >>output, "Type, bandwidth, real bandwidth, quality"
-        for exp in experiments:
-            type, clients = find_clients(exp)
-            try:
-                data = open("stat.%s.csv" % exp).readlines()[1:3]
-                bandwidth = int(data[0].split(",")[1].strip())
-                clients = int(data[0].split(",")[3].strip())
-                rate = int(data[1].split(",")[3].strip())
-                real_bandwidth = float(data[1].split(",")[4].strip())
-                xlabels.append(bandwidth)
-                values.append(real_bandwidth)
-                sizes.append(bandwidth)
-                rates.append(rate)
-                print >>output, "%s, %d, %0.2f, %d" % (type, bandwidth, real_bandwidth, rate)
-            except:
-                print "Error parsing stat.%s.csv" % exp
-        output.close()
-        if not doplot:
-            return
-
-        # Bandwidth figure
-        fig = figure()
-        ax = fig.add_subplot(111)
-        fig.suptitle(_("Bandwidth evaluation (%s) from %d to %d Kbps") % (type, sizes[0], sizes[-1]))
-        ax.plot(range(len(sizes)), sizes, '-', label='Expected bandwidth')
-        ax.plot(range(len(values)), values, 'r-', label='Real bandwidth')
-        xticks(arange(len(xlabels)), xlabels)
-        ylabel(_("Bandwidth (Kbps)"))
-        ax.grid()
-        ax.legend()
-        self.show_fig(fig)
-
-        # Quality figure
-        fig = figure()
-        ax = fig.add_subplot(111)
-        fig.suptitle(_("Reception quality evaluation (%s) from %d to %d Kbps") % (type, sizes[0], sizes[-1]))
-        ax.bar(range(len(rates)), rates)
-        xticks(arange(len(xlabels)), xlabels)
-        ylabel(_("Messages received (%)"))
-        ax.grid()
-        self.show_fig(fig)
-
-    def analyze_mcast(self, timestamp, clients, type="Multicast", doplot=True):
-        """Avalia a banda dos clientes"""
-        xtitles = []
-        messages = []
-        timelines = {}
-        # para fazer as medias
-        losses = {}
-        total_sent = 0
-        total_recv = 0
-        bandwidth=0
-        realbandwidth=0
-
-        if len(clients) < 1:
-            return
-        for client in clients:
-            if type == "Multicast":
-                ext = "mcast"
-            else:
-                ext = "bcast"
-            try:
-                data = open("results.%s.%s.%s" % (timestamp, client, ext)).readlines()
-            except:
-                print "Unable to open file for %s" % client
-                continue
-            total_msgs = int(data[0].split(" ")[3].replace("," ,""))
-            bandwidth = int(data[0].split(" ")[6])
-            received_msgs = int(data[1].split(" ")[3])
-            received_frac = float((received_msgs * 100) / total_msgs)
-
-            # atualiza a contagem global
-            total_sent += total_msgs
-            total_recv += received_msgs
-
-            messages.append(received_frac)
-            xtitles.append("%s\n%d sent, %d recv" % (client, total_msgs, received_msgs))
-
-            ids = []
-            delays = [float(x.split(" ")[1]) for x in data[2:] if len(x) > 1]
-            timelines[client] = (ids, delays)
-
-            if delays:
-                meandelay = reduce(lambda x, y: x+y, delays) / len(delays)
-            else:
-                meandelay = 1
-            maxbandwidth = ((1/meandelay) * 8 * 1450) / 1000 # 1024 - kibps
-
-            realbandwidth += maxbandwidth
-
-            losses[client] = (total_msgs, received_msgs, received_frac, maxbandwidth)
-
-        if not total_sent:
-            # No data was sent?
-            print "Error: no data was sent!"
-            return
-        total_frac = float((total_recv * 100) / total_sent)
-        realbandwidth /= len(clients)
-
-        # creates CSV
-        output = open("stat.%s.csv" % timestamp, "w")
-        print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
-        print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
-        print >>output, "%s, %d, %d, %d, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
-        for client in losses:
-            sent, recv, frac, maxbandwidth = losses[client]
-            print >>output, "%s, %d, %d, %d, %0.2f" % (client, sent, recv, frac, maxbandwidth)
-        output.close()
-
-        # TODO: show graphs instead of saving!!!
-        if not doplot:
-            return
-
-        fig = figure()
-        # Generates graph
-        ax = fig.add_subplot(111)
-        fig.suptitle(_("%s reception quality (%d%% average, %0.2f/%d Kbps)" % (type, total_frac, realbandwidth, bandwidth)))
-        ax.bar(range(len(messages)), messages)
-        xticks(arange(len(xtitles)), xtitles)
-        ylabel(_("Messages received (%)"))
-        ax.grid()
-
-        self.show_fig(fig)
-
-        #if len(clients) == 1:
-        #    filename = "graphs.%s.%s.loss.png" % (timestamp, clients[0])
-        #else:
-        #    filename = "graphs.%s.loss.png" % (timestamp)
-        #savefig(filename, format="png")
-        #print "Saving results to %s" % filename
-        #if get_os() == "Linux":
-        #    os.system("xdg-open %s &" % filename)
-        #else:
-        #    os.system("start %s" % filename)
-
-        # Do we need latency here??
-        return
-
-        #fig = figure()
-        #ylabel(_("Message latency (s)"))
-        #xlabel(_("Execution timeline"))
-        ## agora faz o grafico da banda
-        #for client in timelines:
-        #    title(_("%s message delays") % type)
-        #    ids, delays = timelines[client]
-        #    # com legenda nao cabe..
-        #    #plot(ids, delays, label=client)
-        #    plot(ids, delays)
-        #grid()
-        ##legend()
-
-        #if len(clients) == 1:
-        #    filename = "graphs.%s.%s.delays.png" % (timestamp, clients[0])
-        #else:
-        #    filename = "graphs.%s.delays.png" % (timestamp)
-        #savefig(filename, format="png")
-        #print "Saving results to %s" % filename
-        #if get_os() == "Linux":
-        #    os.system("xdg-open %s &" % filename)
-        #else:
-        #    os.system("start %s" % filename)
-
     def question(self, title, input=None):
         """Asks a question :)"""
         # cria a janela do dialogo
@@ -947,9 +925,14 @@ class TrafdumpGui:
 
     def multicast(self, widget, type="multicast"):
         """Inicia o teste de multicast"""
-        experiment_name = self.question(_("Experiment description:"), _("Multicast experiment"))
+        experiment_name = self.question(_("Experiment description:"), _("%s experiment") % type)
         if not experiment_name:
             return
+        dirname = mkresults(experiment_name)
+        if not dirname:
+            print "Error: unable to create results directory for '%s'!" % experiment_name
+            return
+
         num_msgs = self.question(_("How many multicast messages to send?"), "1000")
         if not num_msgs:
             return
@@ -982,7 +965,7 @@ class TrafdumpGui:
             if img == self.machines[z].button.img_on:
                 machines.append(z)
 
-        self.service.experiments.put((type, experiment_name, (machines, num_msgs, bandwidth)))
+        self.service.experiments.put((type, dirname, (machines, num_msgs, bandwidth)))
 
     def multicast_started(self):
         """Multicast experiment has finished"""
@@ -1006,6 +989,10 @@ class TrafdumpGui:
         experiment_name = self.question(_("Experiment description:"), _("Throughput experiment"))
         if not experiment_name:
             return
+        dirname = mkresults(experiment_name)
+        if not dirname:
+            print "Error: unable to create results directory for '%s'!" % experiment_name
+            return
         self.BandwidthButton.set_sensitive(False)
 
         machines = []
@@ -1014,7 +1001,7 @@ class TrafdumpGui:
             if img == self.machines[z].button.img_on:
                 machines.append(z)
 
-        self.service.experiments.put(("bandwidth", experiment_name, machines))
+        self.service.experiments.put(("bandwidth", dirname, machines))
 
     def start_capture(self, widget):
         """Inicia a captura"""

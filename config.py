@@ -84,9 +84,9 @@ def list_ifaces():
 def timefunc():
     """Detects the most apropriate time function"""
     if get_os() == "Windows":
-        return time.clock
+        return time.clock()
     else:
-        return time.time
+        return time.time()
 
 # socket functions
 def sock_mcast():
@@ -101,3 +101,12 @@ def sock_bcast():
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     return s
 
+def mkresults(title):
+    """Creates a directory to store the results"""
+    timestamp = str(int(time.time()))
+    dirname = "%s.%s" % (title, timestamp)
+    try:
+        os.mkdir(dirname)
+        return dirname
+    except:
+        return None
