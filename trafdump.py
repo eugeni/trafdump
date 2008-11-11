@@ -111,10 +111,6 @@ class TrafdumpRunner(Thread):
                 # Marca a maquina como offline
                 self.gui.set_offline(z)
 
-            if get_os() == "Windows":
-                timefunc = time.clock
-            else:
-                timefunc = time.time
             # envia a mensagem
             try:
                 s.send(struct.pack("<b", COMMAND_BANDWIDTH_TCP))
@@ -166,20 +162,6 @@ class TrafdumpRunner(Thread):
 
     def multicast(self, comments, machines, num_msgs, bandwidth, type="multicast"):
         """Inicia a captura"""
-
-        # funcoes de socket
-        def sock_mcast():
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
-            s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            return s
-
-        def sock_bcast():
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            return s
-
         # agrupa os experimentos
         if len(bandwidth) > 1:
             timestamp_bandwidth_group = str(int(time.time()))
@@ -215,12 +197,6 @@ class TrafdumpRunner(Thread):
                 PORT = BCASTPORT
                 SOCK_FUNC = sock_bcast
                 EXT = "bcast"
-
-            # avalia o SO
-            if get_os() == "Windows":
-                timefunc = time.clock
-            else:
-                timefunc = time.time
 
             print "Captura iniciada"
             self.gui.multicast_started()

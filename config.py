@@ -80,3 +80,24 @@ def list_ifaces():
         id, iface = z.strip().split(".", 1)
         ifaces[iface] = id
     return ifaces
+
+def timefunc():
+    """Detects the most apropriate time function"""
+    if get_os() == "Windows":
+        return time.clock
+    else:
+        return time.time
+
+# socket functions
+def sock_mcast():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
+    s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, 2)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    return s
+
+def sock_bcast():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_IP)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    return s
+
