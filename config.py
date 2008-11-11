@@ -2,6 +2,7 @@
 """Shared configuration file for TrafDump"""
 
 import os
+import time
 import socket
 import traceback
 import struct
@@ -47,17 +48,20 @@ class ReusableSocketServer(SocketServer.TCPServer):
     # TODO: allow address reuse
     allow_reuse_address = True
 
-def connect(addr, port, timeout=None):
+def connect(addr, port, timeout=None, retries=5):
     """Envia mensagem por socket TCP"""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((addr, port))
-        if timeout:
-            s.settimeout(timeout)
-        return s
-    except:
-        traceback.print_exc()
-        return None
+    for z in range(retries):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((addr, port))
+            if timeout:
+                s.settimeout(timeout)
+            return s
+        except:
+            traceback.print_exc()
+            print "Attempting again (%d of %d).." % (z+1, retries)
+            time.sleep(1)
+    return None
 
 def get_os():
     """Returns the name of the OS"""

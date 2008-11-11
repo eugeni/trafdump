@@ -90,7 +90,7 @@ class TrafdumpRunner(Thread):
         # experiments queue
         self.experiments = Queue.Queue()
 
-    def bandwidth(self, machines):
+    def bandwidth(self, comments, machines):
         """Inicia a captura"""
 
         timestamp_bandwidth = str(int(time.time()))
@@ -164,7 +164,7 @@ class TrafdumpRunner(Thread):
         # monta os graficos
         self.gui.analyze_bandwidth(timestamp_bandwidth, machines)
 
-    def multicast(self, machines, num_msgs, bandwidth, type="multicast"):
+    def multicast(self, comments, machines, num_msgs, bandwidth, type="multicast"):
         """Inicia a captura"""
 
         # funcoes de socket
@@ -329,7 +329,7 @@ class TrafdumpRunner(Thread):
             print >>group_fd, "\n".join(bandwidth_group)
             group_fd.close()
 
-    def start_capture(self, machines, descr):
+    def start_capture(self, descr, machines):
         """Inicia a captura"""
 
         # atualiza o timestamp do experimento
@@ -404,21 +404,21 @@ class TrafdumpRunner(Thread):
             if not experiment:
                 continue
             # chegou ALGO
-            name, parameters = experiment
-            print "Running %s" % name
+            name, comments, parameters = experiment
+            print "Running %s (%s)" % (name, comments)
             if name == "bandwidth":
-                self.bandwidth(parameters)
+                self.bandwidth(comments, parameters)
             elif name == "start_capture":
-                machines, descr = parameters
-                self.start_capture(machines, descr)
+                machines = parameters
+                self.start_capture(comments, machines)
             elif name == "stop_capture":
                 self.stop_capture(parameters)
             elif name == "multicast":
                 machines, num_msgs, bandwidth = parameters
-                self.multicast(machines, num_msgs, bandwidth)
+                self.multicast(comments, machines, num_msgs, bandwidth)
             elif name == "broadcast":
                 machines, num_msgs, bandwidth = parameters
-                self.multicast(machines, num_msgs, bandwidth, type="broadcast")
+                self.multicast(comments, machines, num_msgs, bandwidth, type="broadcast")
             else:
                 print "Unknown experiment %s" % name
 # }}}
@@ -476,9 +476,6 @@ class TrafdumpGui:
 
         # Mostra as maquinas
         self.MachineLayout.show_all()
-
-        # inicializa o timestamp
-        self.curtimestamp = 0
 
         # inicializa o servico
         self.service = None
@@ -968,6 +965,9 @@ class TrafdumpGui:
 
     def multicast(self, widget, type="multicast"):
         """Inicia o teste de multicast"""
+        experiment_name = self.question(_("Experiment description:"), _("Multicast experiment"))
+        if not experiment_name:
+            return
         num_msgs = self.question(_("How many multicast messages to send?"), "1000")
         if not num_msgs:
             return
@@ -1000,7 +1000,7 @@ class TrafdumpGui:
             if img == self.machines[z].button.img_on:
                 machines.append(z)
 
-        self.service.experiments.put((type, (machines, num_msgs, bandwidth)))
+        self.service.experiments.put((type, experiment_name, (machines, num_msgs, bandwidth)))
 
     def multicast_started(self):
         """Multicast experiment has finished"""
@@ -1021,6 +1021,9 @@ class TrafdumpGui:
     def bandwidth(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
+        experiment_name = self.question(_("Experiment description:"), _("Throughput experiment"))
+        if not experiment_name:
+            return
         self.BandwidthButton.set_sensitive(False)
 
         machines = []
@@ -1029,13 +1032,13 @@ class TrafdumpGui:
             if img == self.machines[z].button.img_on:
                 machines.append(z)
 
-        self.service.experiments.put(("bandwidth", machines))
+        self.service.experiments.put(("bandwidth", experiment_name, machines))
 
     def start_capture(self, widget):
         """Inicia a captura"""
         # TODO: perguntar o nome do experimento
-        descr = self.question(_("Describe the experiment"), _("Sample traffic collection"))
-        if not descr:
+        experiment_name = self.question(_("Describe the experiment"), _("Sample traffic collection"))
+        if not experiment_name:
             return
 
         machines = []
@@ -1043,7 +1046,7 @@ class TrafdumpGui:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
                 machines.append(z)
-        self.service.experiments.put(("start_capture", (machines, descr)))
+        self.service.experiments.put(("start_capture", experiment_name, machines))
 
     def stop_capture(self, widget):
         """Termina a captura"""
@@ -1052,14 +1055,11 @@ class TrafdumpGui:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
                 machines.append(z)
-        self.service.experiments.put(("stop_capture", machines))
+        self.service.experiments.put(("stop_capture", "", machines))
         print "Captura finalizada"
 
     def select_all(self, widget):
         """Selects all machines"""
-#        self.question("Pergunta1")
-#        ret = self.question("Nome do experimento:", True)
-#        print ret
         for z in self.machines.values():
             z.button.set_image(z.button.img_on)
 
