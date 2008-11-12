@@ -1,7 +1,6 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE glade-interface SYSTEM "glade-2.0.dtd">
-<!--Generated with glade3 3.4.5 on Wed Aug 13 21:01:00 2008 -->
+<?xml version="1.0"?>
 <glade-interface>
+  <requires-version lib="gtk+" version="2.12"/>
   <widget class="GtkWindow" id="MainWindow">
     <property name="width_request">800</property>
     <property name="height_request">600</property>
@@ -61,7 +60,7 @@
             <property name="height_request">520</property>
             <property name="visible">True</property>
             <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
-            <property name="spacing">5</property>
+            <property name="spacing">2</property>
             <child>
               <widget class="GtkButton" id="SelectAllButton">
                 <property name="visible">True</property>
@@ -73,8 +72,6 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">1</property>
               </packing>
             </child>
             <child>
@@ -88,8 +85,114 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="padding">5</property>
+                <property name="position">1</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkHSeparator" id="hseparator1">
+                <property name="visible">True</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="padding">3</property>
                 <property name="position">2</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkButton" id="QuickTest">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="label" translatable="yes">Quick Test</property>
+                <property name="response_id">0</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">3</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkButton" id="FullTest">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="label" translatable="yes">Full Test</property>
+                <property name="response_id">0</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">4</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkLabel" id="LabelAdvanced">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">&lt;b&gt;Advanced options&lt;/b&gt;</property>
+                <property name="use_markup">True</property>
+                <property name="justify">GTK_JUSTIFY_CENTER</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="padding">2</property>
+                <property name="position">5</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkButton" id="BandwidthButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="label" translatable="yes">Estimate TCP</property>
+                <property name="response_id">0</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">6</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkButton" id="MulticastButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="label" translatable="yes">Estimate multicast</property>
+                <property name="response_id">0</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">7</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkButton" id="BroadcastButton">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="receives_default">True</property>
+                <property name="label" translatable="yes">Estimate broadcast</property>
+                <property name="response_id">0</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="position">8</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkLabel" id="WiresharkLabel">
+                <property name="visible">True</property>
+                <property name="label" translatable="yes">&lt;b&gt;Wireshark Integration&lt;/b&gt;</property>
+                <property name="use_markup">True</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
+                <property name="padding">2</property>
+                <property name="position">9</property>
               </packing>
             </child>
             <child>
@@ -97,14 +200,13 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
-                <property name="label" translatable="yes">Start Capture</property>
+                <property name="label" translatable="yes">Start capture</property>
                 <property name="response_id">0</property>
               </widget>
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">3</property>
+                <property name="position">10</property>
               </packing>
             </child>
             <child>
@@ -119,69 +221,31 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">4</property>
+                <property name="position">11</property>
               </packing>
             </child>
             <child>
-              <widget class="GtkButton" id="BandwidthButton">
+              <widget class="GtkHSeparator" id="hseparator2">
+                <property name="visible">True</property>
+              </widget>
+              <packing>
+                <property name="expand">False</property>
+                <property name="padding">3</property>
+                <property name="position">12</property>
+              </packing>
+            </child>
+            <child>
+              <widget class="GtkButton" id="Help">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="receives_default">True</property>
-                <property name="label" translatable="yes">Estimate TCP</property>
+                <property name="label" translatable="yes">Help</property>
                 <property name="response_id">0</property>
               </widget>
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">5</property>
-              </packing>
-            </child>
-            <child>
-              <widget class="GtkButton" id="MulticastButton">
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
-                <property name="label" translatable="yes">Estimate multicast</property>
-                <property name="response_id">0</property>
-              </widget>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">6</property>
-              </packing>
-            </child>
-            <child>
-              <widget class="GtkButton" id="BroadcastButton">
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
-                <property name="label" translatable="yes">Estimate broadcast</property>
-                <property name="response_id">0</property>
-              </widget>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">7</property>
-              </packing>
-            </child>
-            <child>
-              <widget class="GtkButton" id="AnalyzeButton">
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
-                <property name="label" translatable="yes">Analyze results</property>
-                <property name="response_id">0</property>
-                <signal name="clicked" handler="gtk_main_quit"/>
-              </widget>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">8</property>
+                <property name="position">13</property>
               </packing>
             </child>
             <child>
@@ -196,8 +260,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="padding">5</property>
-                <property name="position">9</property>
+                <property name="position">14</property>
               </packing>
             </child>
           </widget>
@@ -209,22 +272,53 @@
         <child>
           <widget class="GtkScrolledWindow" id="MachinesScrollWindow">
             <property name="width_request">580</property>
-            <property name="height_request">520</property>
+            <property name="height_request">370</property>
             <property name="visible">True</property>
+            <property name="app_paintable">True</property>
             <property name="can_focus">True</property>
-            <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+            <property name="has_focus">True</property>
+            <property name="events">GDK_EXPOSURE_MASK | GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_SCROLL_MASK</property>
             <property name="hscrollbar_policy">GTK_POLICY_NEVER</property>
             <property name="vscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
             <child>
               <widget class="GtkLayout" id="MachineLayout">
                 <property name="visible">True</property>
-                <property name="events">GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK</property>
+                <property name="app_paintable">True</property>
+                <property name="can_focus">True</property>
+                <property name="has_focus">True</property>
+                <property name="is_focus">True</property>
+                <property name="events">GDK_EXPOSURE_MASK | GDK_POINTER_MOTION_MASK | GDK_POINTER_MOTION_HINT_MASK | GDK_BUTTON_PRESS_MASK | GDK_BUTTON_RELEASE_MASK | GDK_SCROLL_MASK</property>
+                <property name="width">580</property>
               </widget>
             </child>
           </widget>
           <packing>
             <property name="x">200</property>
             <property name="y">40</property>
+          </packing>
+        </child>
+        <child>
+          <widget class="GtkScrolledWindow" id="scrolledwindow1">
+            <property name="width_request">580</property>
+            <property name="height_request">140</property>
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="hscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+            <property name="vscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+            <child>
+              <widget class="GtkTextView" id="LogView">
+                <property name="width_request">580</property>
+                <property name="height_request">140</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="editable">False</property>
+                <property name="wrap_mode">GTK_WRAP_WORD</property>
+              </widget>
+            </child>
+          </widget>
+          <packing>
+            <property name="x">200</property>
+            <property name="y">415</property>
           </packing>
         </child>
       </widget>

@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <glade-interface>
+  <requires-version lib="gtk+" version="2.12"/>
   <widget class="GtkWindow" id="MainWindow">
     <property name="width_request">640</property>
     <property name="height_request">240</property>
@@ -92,13 +93,23 @@
           </packing>
         </child>
         <child>
-          <widget class="GtkTextView" id="textview1">
+          <widget class="GtkScrolledWindow" id="scrolledwindow1">
             <property name="width_request">420</property>
             <property name="height_request">160</property>
             <property name="visible">True</property>
             <property name="can_focus">True</property>
-            <property name="editable">False</property>
-            <property name="wrap_mode">GTK_WRAP_WORD</property>
+            <property name="hscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+            <property name="vscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+            <child>
+              <widget class="GtkTextView" id="textview1">
+                <property name="width_request">420</property>
+                <property name="height_request">160</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="editable">False</property>
+                <property name="wrap_mode">GTK_WRAP_WORD</property>
+              </widget>
+            </child>
           </widget>
           <packing>
             <property name="x">200</property>
