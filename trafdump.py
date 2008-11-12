@@ -613,7 +613,6 @@ class TrafdumpGui:
         self.QuickTest.connect('clicked', self.quick_test)
         self.FullTest.connect('clicked', self.full_test)
 
-
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
 
@@ -629,6 +628,9 @@ class TrafdumpGui:
 
         # inicializa o servico
         self.service = None
+
+        # all done
+        self.show_progress(_("Trafdump ready!"))
 
     def set_service(self, service):
         """Determines the active benchmarking service"""
@@ -840,8 +842,8 @@ class TrafdumpGui:
                 self.put_machine(machine)
                 self.machines[addr] = machine
                 machine.show_all()
-                self.StatusLabel.set_text("Found %s (%d machines connected)!" % (addr, len(self.machines)))
                 gtk.gdk.threads_leave()
+                self.show_progress(_("Found %s (%d machines connected)!") % (addr, len(self.machines)))
             else:
                 machine = self.machines[addr]
                 self.tooltip.set_tip(machine, _("Updated on %s" % (time.asctime())))
@@ -858,6 +860,10 @@ class TrafdumpGui:
         if message:
             self.tooltip.set_tip(self.machines[machine], _("%s\%s!") % (time.asctime(), message))
         gtk.gdk.threads_leave()
+        if message:
+            self.show_progress(message)
+        else:
+            self.show_progress(_("Lost connection to %s") % machine)
 
     def start_bandwidth(self):
         """Bandwidth experiment started"""
