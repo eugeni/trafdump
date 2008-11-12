@@ -95,6 +95,7 @@ class TrafdumpRunner(Thread):
     def bandwidth(self, dirname, machines):
         """Inicia a captura"""
         print "Captura iniciada"
+        self.gui.start_bandwidth()
         for z in machines:
             print "Enviando para %s" % z
             self.gui.show_progress(_("TCP Bandwidth test for %s") % z)
@@ -853,12 +854,15 @@ class TrafdumpGui:
             self.tooltip.set_tip(self.machines[machine], _("%s\%s!") % (time.asctime(), message))
         gtk.gdk.threads_leave()
 
+    def start_bandwidth(self):
+        """Bandwidth experiment started"""
+        print "Bandwidth experiment started!"""
+        self.toggle_widgets(False)
+
     def finish_bandwidth(self):
         """Bandwidth experiment finished"""
         print "Bandwidth experiment finished!"""
-        gtk.gdk.threads_enter()
-        self.BandwidthButton.set_sensitive(True)
-        gtk.gdk.threads_leave()
+        self.toggle_widgets(True)
 
     def capture_started(self):
         """Traffic experiment started"""
@@ -929,20 +933,20 @@ class TrafdumpGui:
         self.service.experiments.put((type, dirname, (machines, num_msgs, bandwidth)))
 
     def multicast_started(self):
-        """Multicast experiment has finished"""
-        self.MulticastButton.set_sensitive(False)
+        """Multicast experiment has started"""
+        self.toggle_widgets(False)
 
     def multicast_finished(self):
         """Multicast experiment has finished"""
-        self.MulticastButton.set_sensitive(True)
+        self.toggle_widgets(True)
 
     def broadcast_started(self):
-        """Multicast experiment has finished"""
-        self.BroadcastButton.set_sensitive(False)
+        """Broadcast experiment has started"""
+        self.toggle_widgets(False)
 
     def broadcast_finished(self):
-        """Multicast experiment has finished"""
-        self.BroadcastButton.set_sensitive(True)
+        """Broadcast experiment has finished"""
+        self.toggle_widgets(True)
 
     def bandwidth(self, widget):
         """Inicia a captura"""
