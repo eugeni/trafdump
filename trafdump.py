@@ -35,6 +35,17 @@ from matplotlib.backends.backend_gtk import FigureCanvasGTK as FigureCanvas
 from matplotlib.backends.backend_gtk import NavigationToolbar2GTK as NavigationToolbar
 from pylab import *
 
+# report generation
+from reportlab.pdfgen import canvas
+try:
+    import _rl_accel
+    ACCEL = 1
+except ImportError:
+    ACCEL = 0
+from reportlab.lib.units import inch
+from reportlab.lib.pagesizes import A4
+
+# localization
 import gettext
 import __builtin__
 __builtin__._ = gettext.gettext
@@ -70,6 +81,82 @@ def find_clients(timestamp):
         clients.append(client)
     return (exp, clients)
 
+class ReportWriter:
+    """Generates the final report"""
+    def __init__(self):
+        self.top_margin = A4[1] - inch
+        self.bottom_margin = inch
+        self.left_margin = inch
+        self.right_margin = A4[0] - inch
+        self.frame_width = self.right_margin - self.left_margin
+
+    def drawPageFrame(self, canv):
+        canv.line(self.left_margin, self.top_margin, self.right_margin, self.top_margin)
+        canv.setFont('Times-Italic',12)
+        canv.drawString(self.left_margin, self.top_margin + 2, "TrafDump results")
+        canv.line(self.left_margin, self.top_margin, self.right_margin, self.top_margin)
+
+        canv.line(self.left_margin, self.bottom_margin, self.right_margin, self.bottom_margin)
+        canv.drawCentredString(0.5*A4[0], 0.5 * inch,
+                   "Page %d" % canv.getPageNumber())
+
+    def report(self, dirname, files):
+        """Generates the report"""
+        canv = canvas.Canvas("%s/results.pdf" % dirname, invariant=1)
+        canv.setPageCompression(1)
+        self.drawPageFrame(canv)
+
+        #do some title page stuff
+        canv.setFont("Times-Bold", 36)
+        canv.drawCentredString(0.5 * A4[0], 7 * inch, "TrafDump Results")
+
+        canv.setFont("Times-Bold", 18)
+        canv.drawCentredString(0.5 * A4[0], 5 * inch, "%s" % time.asctime())
+
+        canv.setFont("Times-Bold", 12)
+        tx = canv.beginText(self.left_margin, 3 * inch)
+        tx.textLine("Results for TrafDump execution.")
+        tx.textLine("")
+        tx.textLine("Performed tests:")
+        tx.textLine(" - Quick Test:")
+        tx.textLine("")
+        tx.textLine("")
+        tx.textLine("TrafDump v. 1.0")
+        tx.textLine("Eugeni Dodonov, Paulo Costa, 2008")
+        canv.drawText(tx)
+
+        canv.showPage()
+
+        self.drawPageFrame(canv)
+
+        for z in files:
+            canv.setFont('Times-Roman', 12)
+            tx = canv.beginText(self.left_margin, self.top_margin - 0.5*inch)
+            for line in [line.rstrip() for line in open(z).readlines() if line]:
+                if len(line) > 1 and line[0] == "=":
+                    # temporary fix
+                    canv.drawImage(line[1:], 0, 0, width=640, preserveAspectRatio=True)
+                    canv.showPage()
+                    self.drawPageFrame(canv)
+                    continue
+                # agora vem o texto
+                tx.textLine(line.expandtabs())
+
+                #page breaking
+                y = tx.getY()   #get y coordinate
+                if y < self.bottom_margin + 0.5*inch:
+                    canv.drawText(tx)
+                    canv.showPage()
+                    self.drawPageFrame(canv)
+                    canv.setFont('Times-Roman', 12)
+                    tx = canv.beginText(self.left_margin, self.top_margin - 0.5*inch)
+            if tx:
+                canv.drawText(tx)
+                canv.showPage()
+                self.drawPageFrame(canv)
+
+        canv.save()
+
 
 # {{{ TrafdumpRunner
 class TrafdumpRunner(Thread):
@@ -88,6 +175,9 @@ class TrafdumpRunner(Thread):
 
         # inicializa o timestamp
         self.curtimestamp = 0
+
+        # report writer
+        self.report_writer = ReportWriter()
 
         # experiments queue
         self.experiments = Queue.Queue()
@@ -615,6 +705,10 @@ class TrafdumpRunner(Thread):
             elif name == "broadcast":
                 machines, num_msgs, bandwidth = parameters
                 self.multicast(comments, machines, num_msgs, bandwidth, type="broadcast")
+            elif name == "report":
+                logfiles = ["%s/%s" % (comments, f) for f in parameters]
+                print " >>> Generating report in %s: [%s]" % (comments, ",".join(logfiles))
+                self.report_writer.report(comments, logfiles)
             else:
                 print "Unknown experiment %s" % name
 # }}}
@@ -988,6 +1082,12 @@ class TrafdumpGui:
                 machines.append(z)
 
         self.service.experiments.put((type, dirname, (machines, num_msgs, bandwidth)))
+        # geracao de PDF
+        logfiles = []
+        if len(bandwidth) > 1:
+            logfiles.append("%s.txt" % type)
+        logfiles.extend(["%s_%d.txt" % (type, band) for band in bandwidth])
+        self.service.experiments.put(("report", dirname, logfiles))
 
     def multicast_started(self):
         """Multicast experiment has started"""
