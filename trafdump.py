@@ -159,10 +159,18 @@ class TrafdumpRunner(Thread):
 
     def analyze_bandwidth(self, dirname, clients):
         """Avalia a banda dos clientes"""
+        # Resulting pdf lines
+        lines = []
         xtitles = []
         uploads = []
         downloads = []
         bandwidth = []
+
+        # gerar o cabecalho
+        lines.append(_("TCP Bandwidth Evaluation"))
+        lines.append(_("Experiment: %s") % dirname)
+        lines.append(_("Clients: %s\n") % (",".join(clients)))
+
         for client in clients:
             lastip = client.split(".")[-1]
             data = open("%s/%s.band" % (dirname, client)).readlines()
@@ -189,11 +197,13 @@ class TrafdumpRunner(Thread):
         else:
             meandownload = 0
         print >>output, _("All clients, %f, %f") % (meanupload, meandownload)
+        lines.append(_("All clients:\n\tAverage upload: %f MB/sec\n\tAverage download: %f MB/sec") % (meanupload, meandownload))
         for z in range(len(clients)):
             client = clients[z]
             upload = uploads[z]
             download = downloads[z]
             print >>output, "%s, %f, %f" % (client, upload, download)
+            lines.append(_("%s:\n\tUpload: %f MB/sec\n\tDownload: %f MB/sec") % (client, upload, download))
         output.close()
 
         # generates figures
@@ -211,7 +221,14 @@ class TrafdumpRunner(Thread):
         xticks(arange(len(xtitles)), xtitles)
         ylabel(_("Bandwidth (MB/s)"))
         ax.grid()
-        savefig("%s/results.png" % dirname, format="png")
+        savefig("%s/bandwidth.png" % dirname, format="png")
+
+        # agora vamos gerar o PDF
+        print_fd = open("%s/bandwidth.txt" % (dirname), "w")
+        print >>print_fd, "=%s/bandwidth.png" % (dirname)
+        for z in lines:
+            print >>print_fd, z
+        print_fd.close()
 
     def multicast(self, dirname, machines, num_msgs, bandwidth, type="multicast"):
         """Inicia a captura"""
@@ -339,6 +356,7 @@ class TrafdumpRunner(Thread):
 
     def analyze_mcast(self, dirname, band, clients, type="Multicast", doplot=True):
         """Avalia a banda dos clientes"""
+        lines = []
         xtitles = []
         messages = []
         timelines = {}
@@ -351,6 +369,12 @@ class TrafdumpRunner(Thread):
 
         if len(clients) < 1:
             return
+
+        # gerar o cabecalho
+        lines.append(_("%s Bandwidth Evaluation") % type.title())
+        lines.append(_("Bandwidth: %s") % band)
+        lines.append(_("Clients: %s\n") % (",".join(clients)))
+
         for client in clients:
             if type == "multicast":
                 ext = "mcast"
@@ -399,10 +423,12 @@ class TrafdumpRunner(Thread):
         output = open("%s/results.%s.csv" % (dirname, band), "w")
         print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
         print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
-        print >>output, "%s, %d, %d, %d, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
+        print >>output, "%s, %d, %d, %0.2f, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
+        lines.append(_("%s:\n\tSent messages: %d\n\tReceived messages: %d\n\tReception quality: %0.2f %%\n\tBandwidth: %0.2f") % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth))
         for client in losses:
             sent, recv, frac, maxbandwidth = losses[client]
-            print >>output, "%s, %d, %d, %d, %0.2f" % (client, sent, recv, frac, maxbandwidth)
+            print >>output, "%s, %d, %d, %0.2f, %0.2f" % (client, sent, recv, frac, maxbandwidth)
+            lines.append(_("%s:\n\tSent messages: %d\n\tReceived messages: %d\n\tReception quality: %0.2f %%\n\tBandwidth: %0.2f") % (client, sent, recv, frac, maxbandwidth))
         output.close()
 
         fig = figure()
@@ -413,7 +439,14 @@ class TrafdumpRunner(Thread):
         xticks(arange(len(xtitles)), xtitles)
         ylabel(_("Messages received (%)"))
         ax.grid()
-        savefig("%s/results.%s.png" % (dirname, band), format="png")
+        savefig("%s/%s_%s.png" % (dirname, type, band), format="png")
+
+        # gera o arquivo para virar pdf
+        print_fd = open("%s/%s_%s.txt" % (dirname, type, band), "w")
+        print >>print_fd, "=%s/%s_%s.png" % (dirname, type, band)
+        for z in lines:
+            print >>print_fd, z
+        print_fd.close()
 
     def analyze_group(self, dirname, bandwidth, type):
         """Analyzes group of multicast/broadcast experiments.
@@ -431,7 +464,7 @@ class TrafdumpRunner(Thread):
             traceback.print_exc()
             return
 
-        # TODO: check for mixed results
+        lines = []
         xlabels = []
         sizes = []
         values = []
@@ -439,18 +472,24 @@ class TrafdumpRunner(Thread):
         output = open("%s/results.csv" % dirname, "w")
         print >>output, "Type, bandwidth, real bandwidth, quality"
         print experiments
+
+        # gerar o cabecalho
+        lines.append(_("%s Multiple Bandwidth Evaluation") % type.title())
+        lines.append(_("Bandwidth: %s\n") % ",".join([str(x) for x in bandwidth]))
+
         for exp in experiments:
             try:
                 data = open(exp).readlines()[1:3]
                 bandwidth = int(data[0].split(",")[1].strip())
                 clients = int(data[0].split(",")[3].strip())
-                rate = int(data[1].split(",")[3].strip())
+                rate = float(data[1].split(",")[3].strip())
                 real_bandwidth = float(data[1].split(",")[4].strip())
                 xlabels.append(bandwidth)
                 values.append(real_bandwidth)
                 sizes.append(bandwidth)
                 rates.append(rate)
-                print >>output, "%s, %d, %0.2f, %d" % (type, bandwidth, real_bandwidth, rate)
+                print >>output, "%s, %d, %0.2f, %0.2f" % (type, bandwidth, real_bandwidth, rate)
+                lines.append(_("%d KBps:\n\tObtained bandwidth: %0.2f kbps\n\tReception quality: %0.2f %%") % (bandwidth, real_bandwidth, rate))
             except:
                 print "Error parsing stat.%s.csv" % exp
                 traceback.print_exc()
@@ -467,7 +506,7 @@ class TrafdumpRunner(Thread):
         ylabel(_("Bandwidth (Kbps)"))
         ax.grid()
         ax.legend()
-        savefig("%s/bandwidth.png" % dirname, format="png")
+        savefig("%s/%s.png" % (dirname, type), format="png")
 
         # Quality figure
         fig = figure()
@@ -477,8 +516,15 @@ class TrafdumpRunner(Thread):
         xticks(arange(len(xlabels)), xlabels)
         ylabel(_("Messages received (%)"))
         ax.grid()
-        savefig("%s/quality.png" % dirname, format="png")
+        savefig("%s/%s_quality.png" % (dirname, type), format="png")
 
+        # gera o arquivo para virar pdf
+        print_fd = open("%s/%s.txt" % (dirname, type), "w")
+        print >>print_fd, "=%s/%s.png" % (dirname, type)
+        print >>print_fd, "=%s/%s_quality.png" % (dirname, type)
+        for z in lines:
+            print >>print_fd, z
+        print_fd.close()
 
     def start_capture(self, dirname, machines):
         """Inicia a captura"""
