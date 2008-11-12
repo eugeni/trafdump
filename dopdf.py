@@ -78,17 +78,15 @@ def run(verbose=1):
     for z in files:
         canv.setFont('Times-Roman', 12)
         tx = canv.beginText(left_margin, top_margin - 0.5*inch)
-        for line in [line.strip() for line in open(z).readlines() if line]:
-            if len(line) < 1:
-                continue
-            if line[0] == "=":
+        for line in [line.rstrip() for line in open(z).readlines() if line]:
+            if len(line) > 1 and line[0] == "=":
                 # temporary fix
                 canv.drawImage(line[1:], 0, 0, width=640, preserveAspectRatio=True)
                 canv.showPage()
                 drawPageFrame(canv)
                 continue
             # agora vem o texto
-            tx.textLine(line)
+            tx.textLine(line.expandtabs())
 
             #page breaking
             y = tx.getY()   #get y coordinate
