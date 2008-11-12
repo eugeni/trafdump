@@ -610,9 +610,9 @@ class TrafdumpGui:
         self.BandwidthButton.connect('clicked', self.bandwidth)
         self.MulticastButton.connect('clicked', self.multicast)
         self.BroadcastButton.connect('clicked', self.multicast, "broadcast")
-        self.AnalyzeButton.connect('clicked', self.analyze)
         self.QuickTest.connect('clicked', self.quick_test)
         self.FullTest.connect('clicked', self.full_test)
+
 
         # Configura o timer
         gobject.timeout_add(1000, self.monitor)
@@ -803,7 +803,12 @@ class TrafdumpGui:
     def show_progress(self, message):
         """Shows a message :)"""
         gtk.gdk.threads_enter()
+        # Status
         self.StatusLabel.set_text(message)
+        # Log
+        buffer = self.LogView.get_buffer()
+        iter = buffer.get_end_iter()
+        buffer.insert(iter, "%s: %s\n" % (time.asctime(), message))
         gtk.gdk.threads_leave()
 
     def put_machine(self, machine):

@@ -183,21 +183,6 @@
               </packing>
             </child>
             <child>
-              <widget class="GtkButton" id="AnalyzeButton">
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="receives_default">True</property>
-                <property name="label" translatable="yes">Analyze results</property>
-                <property name="response_id">0</property>
-                <signal name="clicked" handler="gtk_main_quit"/>
-              </widget>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">False</property>
-                <property name="position">9</property>
-              </packing>
-            </child>
-            <child>
               <widget class="GtkLabel" id="WiresharkLabel">
                 <property name="visible">True</property>
                 <property name="label" translatable="yes">&lt;b&gt;Wireshark Integration&lt;/b&gt;</property>
@@ -207,7 +192,7 @@
                 <property name="expand">False</property>
                 <property name="fill">False</property>
                 <property name="padding">2</property>
-                <property name="position">10</property>
+                <property name="position">9</property>
               </packing>
             </child>
             <child>
@@ -221,7 +206,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="position">11</property>
+                <property name="position">10</property>
               </packing>
             </child>
             <child>
@@ -236,7 +221,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="position">12</property>
+                <property name="position">11</property>
               </packing>
             </child>
             <child>
@@ -246,7 +231,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="padding">3</property>
-                <property name="position">13</property>
+                <property name="position">12</property>
               </packing>
             </child>
             <child>
@@ -260,7 +245,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="position">14</property>
+                <property name="position">13</property>
               </packing>
             </child>
             <child>
@@ -275,7 +260,7 @@
               <packing>
                 <property name="expand">False</property>
                 <property name="fill">False</property>
-                <property name="position">15</property>
+                <property name="position">14</property>
               </packing>
             </child>
           </widget>
@@ -287,7 +272,7 @@
         <child>
           <widget class="GtkScrolledWindow" id="MachinesScrollWindow">
             <property name="width_request">580</property>
-            <property name="height_request">400</property>
+            <property name="height_request">370</property>
             <property name="visible">True</property>
             <property name="app_paintable">True</property>
             <property name="can_focus">True</property>
@@ -310,6 +295,30 @@
           <packing>
             <property name="x">200</property>
             <property name="y">40</property>
+          </packing>
+        </child>
+        <child>
+          <widget class="GtkScrolledWindow" id="scrolledwindow1">
+            <property name="width_request">580</property>
+            <property name="height_request">140</property>
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="hscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+            <property name="vscrollbar_policy">GTK_POLICY_AUTOMATIC</property>
+            <child>
+              <widget class="GtkTextView" id="LogView">
+                <property name="width_request">580</property>
+                <property name="height_request">140</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="editable">False</property>
+                <property name="wrap_mode">GTK_WRAP_WORD</property>
+              </widget>
+            </child>
+          </widget>
+          <packing>
+            <property name="x">200</property>
+            <property name="y">415</property>
           </packing>
         </child>
       </widget>
