@@ -276,7 +276,7 @@ class TrafdumpRunner(Thread):
             bandwidth.append(download)
 
         # generates CSV file
-        output = open("%s/results.csv" % dirname, "w")
+        output = open("%s/bandwidth.csv" % dirname, "w")
         print >>output, _("Client, upload, download")
         if uploads:
             meanupload = reduce(lambda x, y: x + y, uploads) / len(uploads)
@@ -510,7 +510,7 @@ class TrafdumpRunner(Thread):
         realbandwidth /= len(clients)
 
         # creates CSV
-        output = open("%s/results.%s.csv" % (dirname, band), "w")
+        output = open("%s/%s.%s.csv" % (dirname, type, band), "w")
         print >>output, _("Client, sent messages, received messages, received fraction, real bandwidth")
         print >>output, _("Bandwidth, %d, clients, %d") % (bandwidth, len(clients))
         print >>output, "%s, %d, %d, %0.2f, %0.2f" % (_("All clients"), total_sent, total_recv, total_frac, realbandwidth)
@@ -548,7 +548,7 @@ class TrafdumpRunner(Thread):
             return
 
         try:
-            experiments = ["%s/results.%s.csv" % (dirname, z) for z in bandwidth]
+            experiments = ["%s/%s.%s.csv" % (dirname, type, z) for z in bandwidth]
         except:
             print _("Unable to parse timestamp list for %s!") % timestamp
             traceback.print_exc()
@@ -559,7 +559,7 @@ class TrafdumpRunner(Thread):
         sizes = []
         values = []
         rates = []
-        output = open("%s/results.csv" % dirname, "w")
+        output = open("%s/%s.csv" % (dirname, type), "w")
         print >>output, "Type, bandwidth, real bandwidth, quality"
         print experiments
 
@@ -581,7 +581,7 @@ class TrafdumpRunner(Thread):
                 print >>output, "%s, %d, %0.2f, %0.2f" % (type, bandwidth, real_bandwidth, rate)
                 lines.append(_("%d KBps:\n\tObtained bandwidth: %0.2f kbps\n\tReception quality: %0.2f %%") % (bandwidth, real_bandwidth, rate))
             except:
-                print "Error parsing stat.%s.csv" % exp
+                print "Error parsing %s!" % exp
                 traceback.print_exc()
         output.close()
 
@@ -707,7 +707,8 @@ class TrafdumpRunner(Thread):
                 self.multicast(comments, machines, num_msgs, bandwidth, type="broadcast")
             elif name == "report":
                 logfiles = ["%s/%s" % (comments, f) for f in parameters]
-                print " >>> Generating report in %s: [%s]" % (comments, ",".join(logfiles))
+                print "Generating report in %s/results.pdf: [%s]" % (comments, ",".join(logfiles))
+                self.gui.show_progress(_("Generating report in %s/results.pdf") % (comments))
                 self.report_writer.report(comments, logfiles)
             else:
                 print "Unknown experiment %s" % name
@@ -1124,6 +1125,7 @@ class TrafdumpGui:
                 machines.append(z)
 
         self.service.experiments.put(("bandwidth", dirname, machines))
+        self.service.experiments.put(("report", dirname, ["bandwidth.txt"]))
 
     def start_capture(self, widget):
         """Inicia a captura"""
