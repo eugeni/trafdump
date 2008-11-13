@@ -24,7 +24,9 @@ Processar os dados:
 -------------------------------------------------
 - Mostrador visual do ultimo(s) teste
 - Criar "Quick Benchmark" e "Complete Benchmark"
-- Gerar pdf/html de todos os resultados
 - Mostrar status (numero de maquinas, AP, essid..)
 - Periodic ping to see if clients are alive
 - Scroll log window to the end.
+- BUG: crashes when no clients are selected
+- BUG: gtk pauses without activity
+- BUG: full test: too long lines

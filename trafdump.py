@@ -129,7 +129,9 @@ class ReportWriter:
 
         self.drawPageFrame(canv)
 
+        print files
         for z in files:
+            print z
             canv.setFont('Times-Roman', 12)
             tx = canv.beginText(self.left_margin, self.top_margin - 0.5*inch)
             for line in [line.rstrip() for line in open(z).readlines() if line]:
@@ -245,7 +247,6 @@ class TrafdumpRunner(Thread):
         # Agora analisa os resultados
         self.gui.show_progress(_("Analyzing overall TCP bandwidth.."))
         self.analyze_bandwidth(dirname, machines)
-        self.gui.finish_bandwidth()
 
     def analyze_bandwidth(self, dirname, clients):
         """Avalia a banda dos clientes"""
@@ -432,7 +433,6 @@ class TrafdumpRunner(Thread):
                     traceback.print_exc()
                     self.gui.set_offline(z, _("Error while receiving data from %s: %s!") % (z, sys.exc_value))
             self.analyze_mcast(dirname, band, machines, type)
-            self.gui.multicast_finished()
             # Agora recupera os dados de todos
             # TODO: analisar todos
             #if type == "multicast":
@@ -681,7 +681,6 @@ class TrafdumpRunner(Thread):
             s.close()
             # Agora vamos esperar a resposta..
         print "Captura finalizada"
-        self.gui.capture_finished()
 
     def run(self):
         """Starts a background thread"""
@@ -694,22 +693,66 @@ class TrafdumpRunner(Thread):
             print "Running %s (%s)" % (name, comments)
             if name == "bandwidth":
                 self.bandwidth(comments, parameters)
+                self.gui.finish_bandwidth()
             elif name == "start_capture":
                 machines = parameters
                 self.start_capture(comments, machines)
             elif name == "stop_capture":
                 self.stop_capture(parameters)
+                self.gui.capture_finished()
             elif name == "multicast":
                 machines, num_msgs, bandwidth = parameters
                 self.multicast(comments, machines, num_msgs, bandwidth)
+                self.gui.multicast_finished()
             elif name == "broadcast":
                 machines, num_msgs, bandwidth = parameters
                 self.multicast(comments, machines, num_msgs, bandwidth, type="broadcast")
+                self.gui.multicast_finished()
             elif name == "report":
                 logfiles = ["%s/%s" % (comments, f) for f in parameters]
                 print "Generating report in %s/results.pdf: [%s]" % (comments, ",".join(logfiles))
                 self.gui.show_progress(_("Generating report in %s/results.pdf") % (comments))
                 self.report_writer.report(comments, logfiles)
+            elif name == "quick":
+                # Quick experiment
+                # Should take around 2 minutes
+                # 1: Multicast Test: from 400 to 2000, with step of 400, and using 400 messages
+                machines = parameters
+                if len(machines) < 1:
+                    self.gui.show_progress(_("Error: no machines to evaluate, aborting."))
+                    self.gui.finish_quick()
+                    return
+                bandwidth = range(400, 2001, 400)
+                # prepare logfiles
+                self.multicast(comments, machines, 400, bandwidth)
+                # vamos ver os arquivos de log
+                logfiles = ["%s/multicast.txt" % comments]
+                self.gui.show_progress(_("Generating final report.."))
+                self.report_writer.report(comments, logfiles)
+                self.gui.show_progress(_("Quick test finished!"))
+                self.gui.finish_quick()
+            elif name == "full":
+                # Full experiment
+                # Should take around 2 minutes
+                # 1: TCP Bandwidth test
+                # 1: Multicast Test: from 400 to 4000, with step of 200, and using 100 messages
+                machines = parameters
+                if len(machines) < 1:
+                    self.gui.show_progress(_("Error: no machines to evaluate, aborting."))
+                    self.gui.finish_full()
+                    return
+                bandwidth = range(400, 4001, 200)
+                # prepare logfiles
+                self.bandwidth(comments, machines)
+                self.multicast(comments, machines, 1000, bandwidth)
+                # vamos ver os arquivos de log
+                logfiles = ["bandwidth.txt", "multicast.txt"]
+                logfiles.extend(["multicast_%d.txt" % band for band in bandwidth])
+                logfiles = ["%s/%s" % (comments, f) for f in logfiles]
+                self.gui.show_progress(_("Generating final report.."))
+                self.report_writer.report(comments, logfiles)
+                self.gui.show_progress(_("Full test finished!"))
+                self.gui.finish_full()
             else:
                 print "Unknown experiment %s" % name
 # }}}
@@ -780,11 +823,51 @@ class TrafdumpGui:
     def quick_test(self, widget):
         """Runs the quick test"""
         print "Quick test"
+        experiment_name = self.question(_("This will run the Quick Test, which should take around 2 minutes.\n\nExperiment description:"), _("Quick experiment"))
+        if not experiment_name:
+            return
+        dirname = mkresults(experiment_name)
+        if not dirname:
+            print "Error: unable to create results directory for '%s'!" % experiment_name
+            return
+
+        machines = []
+        for z in self.machines:
+            img = self.machines[z].button.get_image()
+            if img == self.machines[z].button.img_on:
+                machines.append(z)
+
+        self.service.experiments.put(("quick", dirname, machines))
         self.toggle_widgets(False)
+
+    def finish_quick(self):
+        """Quick experiment finished"""
+        print "Quick experiment finished!"""
+        self.toggle_widgets(True)
 
     def full_test(self, widget):
         """Runs the full test"""
         print "Full test"
+        experiment_name = self.question(_("This will run the Full Test, which could take more than 10 minutes.\n\nExperiment description:"), _("Quick experiment"))
+        if not experiment_name:
+            return
+        dirname = mkresults(experiment_name)
+        if not dirname:
+            print "Error: unable to create results directory for '%s'!" % experiment_name
+            return
+
+        machines = []
+        for z in self.machines:
+            img = self.machines[z].button.get_image()
+            if img == self.machines[z].button.img_on:
+                machines.append(z)
+
+        self.service.experiments.put(("full", dirname, machines))
+        self.toggle_widgets(False)
+
+    def finish_full(self):
+        """Full experiment finished"""
+        print "Full experiment finished!"""
         self.toggle_widgets(True)
 
     def analyze(self, widget):
@@ -952,6 +1035,11 @@ class TrafdumpGui:
         buffer = self.LogView.get_buffer()
         iter = buffer.get_end_iter()
         buffer.insert(iter, "%s: %s\n" % (time.asctime(), message))
+        # XXX: we hand here.. :(
+        #self.MainWindow.show_all()
+        #while gtk.events_pending():
+        #    gtk.main_iteration(False)
+
         gtk.gdk.threads_leave()
 
     def put_machine(self, machine):
@@ -989,7 +1077,7 @@ class TrafdumpGui:
                 machine = self.machines[addr]
                 self.tooltip.set_tip(machine, _("Updated on %s" % (time.asctime())))
 
-        gobject.timeout_add(1000, self.monitor)
+        return True
 
     def set_offline(self, machine, message=None):
         """Marks a machine as offline"""
@@ -1037,7 +1125,9 @@ class TrafdumpGui:
         for widget in [self.BandwidthButton,
                         self.MulticastButton,
                         self.BroadcastButton,
-                        self.BandwidthButton]:
+                        self.BandwidthButton,
+                        self.QuickTest,
+                        self.FullTest]:
             widget.set_sensitive(value)
 
     def multicast(self, widget, type="multicast"):
