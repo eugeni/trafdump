@@ -1035,11 +1035,11 @@ class TrafdumpGui:
         buffer = self.LogView.get_buffer()
         iter = buffer.get_end_iter()
         buffer.insert(iter, "%s: %s\n" % (time.asctime(), message))
+        self.LogView.scroll_to_iter(iter, 0)
         # XXX: we hand here.. :(
         #self.MainWindow.show_all()
         #while gtk.events_pending():
         #    gtk.main_iteration(False)
-
         gtk.gdk.threads_leave()
 
     def put_machine(self, machine):
