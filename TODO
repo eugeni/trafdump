@@ -23,10 +23,10 @@ Processar os dados:
  - Instalar glib2 no windows.
 -------------------------------------------------
 - Mostrador visual do ultimo(s) teste
+- Gerar graficos para cada host
 - Criar "Quick Benchmark" e "Complete Benchmark"
 - Mostrar status (numero de maquinas, AP, essid..)
 - Periodic ping to see if clients are alive
-- Scroll log window to the end.
 - BUG: crashes when no clients are selected
 - BUG: gtk pauses without activity
 - BUG: full test: too long lines
