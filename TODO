@@ -30,3 +30,6 @@ Processar os dados:
 - BUG: crashes when no clients are selected
 - BUG: gtk pauses without activity
 - BUG: full test: too long lines
+- Remove tcl/tk/tkinter binary files.
+- BUG: scroll client log
+- Add experiment descriptions.
