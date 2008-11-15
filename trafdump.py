@@ -118,7 +118,7 @@ class ReportWriter:
         tx.textLine("Results for TrafDump execution.")
         tx.textLine("")
         tx.textLine("Performed tests:")
-        tx.textLine(" - Quick Test:")
+#        tx.textLine(" - Quick Test:")
         tx.textLine("")
         tx.textLine("")
         tx.textLine("TrafDump v. 1.0")
@@ -848,7 +848,7 @@ class TrafdumpGui:
     def full_test(self, widget):
         """Runs the full test"""
         print "Full test"
-        experiment_name = self.question(_("This will run the Full Test, which could take more than 10 minutes.\n\nExperiment description:"), _("Quick experiment"))
+        experiment_name = self.question(_("This will run the Full Test, which could take more than 10 minutes.\n\nExperiment description:"), _("Full experiment"))
         if not experiment_name:
             return
         dirname = mkresults(experiment_name)
