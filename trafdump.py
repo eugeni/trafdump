@@ -621,8 +621,9 @@ class TrafdumpRunner(Thread):
 
         # atualiza o timestamp do experimento
         self.capturedir = dirname
+        timestamp = str(time.time())
 
-        fd = open("dirname/results.txt" % dirname, "w")
+        fd = open("%s/results.txt" % dirname, "w")
         fd.write("%s\n" % dirname)
         fd.close()
 
@@ -637,11 +638,12 @@ class TrafdumpRunner(Thread):
             try:
                 s.send(struct.pack("<b", COMMAND_START_CAPTURE))
                 # envia o timestamp do experimento e a descricao
-                s.send(struct.pack("10s32s", dirname, dirname))
+                s.send(struct.pack("10s32s", timestamp, dirname))
             except:
                 print _("Erro enviando mensagem para %s: %s" % (z, sys.exc_value))
                 self.gui.set_offline(z, _("Error communicating with %s: %s!") % (z, sys.exc_value))
-            s.close()
+            if s:
+                s.close()
         print "Captura iniciada"
         self.gui.capture_started()
 
@@ -815,6 +817,14 @@ class TrafdumpGui:
 
         # all done
         self.show_progress(_("Trafdump ready!"))
+
+        # Create some testing machines
+        for addr in range(1, 128):
+            machine = self.mkmachine("192.168.0.%d" % addr)
+            machine.button.connect('clicked', self.cb_machine, machine)
+            self.put_machine(machine)
+            self.machines[addr] = machine
+            machine.show_all()
 
     def set_service(self, service):
         """Determines the active benchmarking service"""
@@ -1223,13 +1233,17 @@ class TrafdumpGui:
         experiment_name = self.question(_("Describe the experiment"), _("Sample traffic collection"))
         if not experiment_name:
             return
+        dirname = mkresults(experiment_name)
+        if not dirname:
+            print "Error: unable to create results directory for '%s'!" % experiment_name
+            return
 
         machines = []
         for z in self.machines:
             img = self.machines[z].button.get_image()
             if img == self.machines[z].button.img_on:
                 machines.append(z)
-        self.service.experiments.put(("start_capture", experiment_name, machines))
+        self.service.experiments.put(("start_capture", dirname, machines))
 
     def stop_capture(self, widget):
         """Termina a captura"""

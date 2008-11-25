@@ -41,8 +41,6 @@ DEBUG=False
 
 # configuracoes globais
 commands = None
-ifaces = None
-iface_selected = 0
 
 class trafdump:
     selected_machines = 0
@@ -91,6 +89,7 @@ class trafdump:
         self.IfacesBox.set_active(0)
         self.IfacesBox.connect('changed', self.network_selected)
         self.iface = None
+        self.iface_selected = None
         self.outfile = None
         # Inicializa as threads
         self.bcast = BcastSender(LISTENPORT, self)
@@ -123,12 +122,11 @@ class trafdump:
         """A network interface was selected"""
         model = combobox.get_model()
         index = combobox.get_active()
-        global iface_selected
         if index > 0:
-            iface_selected = model[index][0]
-            gui.log( _("Capturing on %s") % iface_selected)
+            self.iface_selected = index
+            gui.log( _("Capturing on %s") % model[index][0])
         else:
-            iface_selected = 0
+            self.iface_selected = None
         return
 
     def monitor(self):
@@ -361,16 +359,17 @@ class TrafClient(Thread):
                     gui.outfile = "%s.pcap" % timestamp
                     descr_r = str(self.request.recv(32))
                     descr = struct.unpack("32s", descr_r)[0]
-                    print descr
+                    print "Capturing: %s" % descr
                     gui.log(_("Starting capture to %s") % (gui.outfile))
-                    global iface_selected
-                    if iface_selected not in ifaces:
-                        gui.log(_("\n!! ERROR!! Capturing interface not selecting, capturing to first available!"))
-                        iface_selected = ifaces.keys()[0]
-                    iface_idx = ifaces[iface_selected]
+                    if not gui.iface_selected:
+                        gui.log(_("\n!! ERROR!! Capturing not available!"))
+                        return
+                    print gui.iface_selected
+                    print gui.ifaces
+                    iface_idx = gui.iface_selected
                     # Primeiro, vamos parar as capturas antigas
                     run_subprocess(commands["stop"])
-                    gui.log(_("Capturing on %s (%s)" % (iface_idx, iface_selected)))
+                    gui.log(_("Capturing on %s" % (iface_idx)))
                     run_subprocess(
                             commands["capture"] % {"iface": iface_idx, "output": gui.outfile}
                             )
