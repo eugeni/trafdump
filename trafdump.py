@@ -819,12 +819,12 @@ class TrafdumpGui:
         self.show_progress(_("Trafdump ready!"))
 
         # Create some testing machines
-        for addr in range(1, 128):
-            machine = self.mkmachine("192.168.0.%d" % addr)
-            machine.button.connect('clicked', self.cb_machine, machine)
-            self.put_machine(machine)
-            self.machines[addr] = machine
-            machine.show_all()
+        #for addr in range(1, 128):
+        #    machine = self.mkmachine("192.168.0.%d" % addr)
+        #    machine.button.connect('clicked', self.cb_machine, machine)
+        #    self.put_machine(machine)
+        #    self.machines[addr] = machine
+        #    machine.show_all()
 
     def set_service(self, service):
         """Determines the active benchmarking service"""
