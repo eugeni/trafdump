@@ -1027,9 +1027,10 @@ class TrafdumpGui:
         dialog.show_all()
         response = dialog.run()
         if response == gtk.RESPONSE_OK:
+            res = entry.get_text()
             dialog.destroy()
             if input:
-                return entry.get_text()
+                return res
             else:
                 return True
         else:
