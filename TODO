@@ -3,6 +3,7 @@ Notify to open 10000 UDP/TCP port.
 
 Bugs:
  - tempos minimos e maximos (?)
+ - fix threading via proper queuing
 
 Detailed error messages (i.e., timeout, etc).
 Processar os dados:
